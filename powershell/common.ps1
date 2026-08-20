@@ -9,7 +9,8 @@ function Get-ToolkitRoot {
 function Get-ToolkitVersion {
     $versionPath = Join-Path $script:ToolkitRoot "VERSION"
     if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
-        $value = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+        $rawValue = Get-Content -LiteralPath $versionPath -Raw
+        $value = if ($null -eq $rawValue) { "" } else { ([string]$rawValue).Trim() }
         if (-not [string]::IsNullOrWhiteSpace($value)) {
             return $value
         }
@@ -399,6 +400,310 @@ function Remove-StaleFile {
     if (Test-Path -LiteralPath $Path -PathType Leaf) {
         Remove-Item -LiteralPath $Path -Force
     }
+}
+
+function New-ToolkitFailureException {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Z0-9][A-Z0-9._-]*$')][string]$BlockerCode,
+        [string]$FailureStage = "unknown",
+        [bool]$Retryable = $false,
+        [bool]$RequiresIT = $false,
+        [string]$NextAction = "Review the exact blocker and latest.log, then retry only after the stated cause is resolved."
+    )
+
+    $exception = [System.InvalidOperationException]::new($Message)
+    $exception.Data["blockerCode"] = $BlockerCode
+    $exception.Data["retryable"] = $Retryable
+    $exception.Data["requiresIT"] = $RequiresIT
+    $exception.Data["nextAction"] = $NextAction
+    $exception.Data["failureStage"] = $FailureStage
+    $exception.Data["detail"] = $Message
+    return $exception
+}
+
+function Throw-ToolkitFailure {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Z0-9][A-Z0-9._-]*$')][string]$BlockerCode,
+        [string]$FailureStage = "unknown",
+        [bool]$Retryable = $false,
+        [bool]$RequiresIT = $false,
+        [string]$NextAction = "Review the exact blocker and latest.log, then retry only after the stated cause is resolved."
+    )
+
+    $exception = New-ToolkitFailureException `
+        -Message $Message `
+        -BlockerCode $BlockerCode `
+        -FailureStage $FailureStage `
+        -Retryable $Retryable `
+        -RequiresIT $RequiresIT `
+        -NextAction $NextAction
+    throw $exception
+}
+
+function Get-ToolkitFailureMetadata {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$ErrorObject,
+        [string]$DefaultBlockerCode = "UNCLASSIFIED_FAILURE",
+        [string]$DefaultFailureStage = "unknown",
+        [bool]$DefaultRetryable = $false,
+        [bool]$DefaultRequiresIT = $false,
+        [string]$DefaultNextAction = "Review the exact blocker and latest.log, then retry only after the stated cause is resolved."
+    )
+
+    $exception = if ($ErrorObject -is [System.Management.Automation.ErrorRecord]) {
+        $ErrorObject.Exception
+    }
+    elseif ($ErrorObject -is [System.Exception]) {
+        $ErrorObject
+    }
+    else {
+        $null
+    }
+
+    $metadataException = $exception
+    while ($null -ne $metadataException) {
+        if ($metadataException.Data.Contains("blockerCode")) { break }
+        $metadataException = $metadataException.InnerException
+    }
+    if ($null -eq $metadataException) { $metadataException = $exception }
+
+    $detail = if ($null -ne $exception -and -not [string]::IsNullOrWhiteSpace($exception.Message)) {
+        $exception.Message
+    }
+    else {
+        [string]$ErrorObject
+    }
+    $blockerCode = $DefaultBlockerCode
+    $failureStage = $DefaultFailureStage
+    $retryable = $DefaultRetryable
+    $requiresIT = $DefaultRequiresIT
+    $nextAction = $DefaultNextAction
+
+    if ($null -ne $metadataException) {
+        if ($metadataException.Data.Contains("blockerCode")) { $blockerCode = [string]$metadataException.Data["blockerCode"] }
+        if ($metadataException.Data.Contains("failureStage")) { $failureStage = [string]$metadataException.Data["failureStage"] }
+        if ($metadataException.Data.Contains("retryable")) { $retryable = [bool]$metadataException.Data["retryable"] }
+        if ($metadataException.Data.Contains("requiresIT")) { $requiresIT = [bool]$metadataException.Data["requiresIT"] }
+        if ($metadataException.Data.Contains("nextAction")) { $nextAction = [string]$metadataException.Data["nextAction"] }
+        if ($metadataException.Data.Contains("detail")) { $detail = [string]$metadataException.Data["detail"] }
+    }
+
+    return [pscustomobject][ordered]@{
+        blockerCode = $blockerCode
+        retryable = $retryable
+        requiresIT = $requiresIT
+        nextAction = $nextAction
+        failureStage = $failureStage
+        detail = $detail
+    }
+}
+
+function Add-ToolkitDiagnosticLog {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [string]$LogPath
+    )
+
+    try {
+        if ([string]::IsNullOrWhiteSpace($LogPath)) {
+            if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { return }
+            $LogPath = Join-Path $env:LOCALAPPDATA "DigitalTransformationToolkit\runtime\latest.log"
+        }
+        $logParent = Split-Path -Parent $LogPath
+        if (-not [string]::IsNullOrWhiteSpace($logParent)) {
+            New-Item -ItemType Directory -Path $logParent -Force | Out-Null
+        }
+        $line = "{0} {1}" -f (Get-Date).ToUniversalTime().ToString("o"), $Message
+        Add-Content -LiteralPath $LogPath -Value $line -Encoding UTF8
+    }
+    catch {
+        # Diagnostic logging must never replace the executable failure that the
+        # caller needs to classify and report.
+    }
+}
+
+function Test-ToolkitExecutionBlocked {
+    [CmdletBinding()]
+    param(
+        [string]$Text,
+        [System.Exception]$Exception
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Text) -and
+        $Text -match '(?i)(blocked by.*policy|group policy|policy restriction|administrator has blocked|access is denied|0x800704ec|0x800704c7|this app has been blocked|software restriction policy|AppLocker|WDAC|code integrity|requires elevation|elevation required|requested operation requires elevation|operation was canceled by the user|User Account Control|\bUAC\b|0x800702e4)') {
+        return $true
+    }
+
+    $current = $Exception
+    while ($null -ne $current) {
+        if ($current -is [System.Security.SecurityException] -or
+            $current -is [System.UnauthorizedAccessException]) {
+            return $true
+        }
+        if ($current -is [System.ComponentModel.Win32Exception] -and
+            @([int]5, [int]577, [int]740, [int]1223, [int]1260) -contains [int]$current.NativeErrorCode) {
+            return $true
+        }
+        $current = $current.InnerException
+    }
+    return $false
+}
+
+function Invoke-ToolkitExecutableSmoke {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ProductName,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$ExpectedMarkerPattern,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Z0-9][A-Z0-9._-]*$')][string]$BlockerCode,
+        [string]$FailureStage = "preflight",
+        [bool]$Retryable = $true,
+        [bool]$RequiresIT = $false,
+        [string]$NextAction = "Close any running copy of the tool and keep latest.log available for the retry.",
+        [string]$LogPath,
+        [ValidateRange(1, 60)][int]$TimeoutSeconds = 15
+    )
+
+    $attemptId = [guid]::NewGuid().ToString("N")
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "DigitalTransformationToolkit"
+    $stdoutPath = Join-Path $tempRoot ("smoke_{0}_{1}.stdout.log" -f $attemptId, (Get-SafeArtifactName -Value $ProductName))
+    $stderrPath = Join-Path $tempRoot ("smoke_{0}_{1}.stderr.log" -f $attemptId, (Get-SafeArtifactName -Value $ProductName))
+    $succeeded = $false
+    $timedOut = $false
+    $exitCode = $null
+    $combinedOutput = ""
+    $failureMessage = $null
+    $process = $null
+    $caughtException = $null
+    $terminationConfirmed = $true
+
+    try {
+        New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+        $nativeArguments = @($Arguments | ForEach-Object { Quote-NativeArgument -Value ([string]$_) }) -join " "
+        $process = Start-Process `
+            -FilePath $Path `
+            -ArgumentList $nativeArguments `
+            -WindowStyle Hidden `
+            -PassThru `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+        $null = $process.Handle
+        $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+        if ($timedOut) {
+            $terminationConfirmed = $false
+            try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch { }
+            try {
+                $terminationConfirmed = $process.WaitForExit(5000)
+                if (-not $terminationConfirmed) {
+                    try { $process.Kill() } catch { }
+                    $terminationConfirmed = $process.WaitForExit(5000)
+                }
+                if ($terminationConfirmed) { $process.WaitForExit() }
+            }
+            catch { }
+            $exitCode = -2
+        }
+        else {
+            $process.WaitForExit()
+            $process.Refresh()
+            $exitCode = $process.ExitCode
+        }
+
+        $stdout = if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) { (Get-Content -LiteralPath $stdoutPath -Raw | Out-String).Trim() } else { "" }
+        $stderr = if (Test-Path -LiteralPath $stderrPath -PathType Leaf) { (Get-Content -LiteralPath $stderrPath -Raw | Out-String).Trim() } else { "" }
+        $combinedOutput = (@($stderr, $stdout) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
+
+        if ($timedOut) {
+            $failureMessage = if ($terminationConfirmed) {
+                "$ProductName smoke test timed out after $TimeoutSeconds seconds; exact process termination was confirmed."
+            }
+            else {
+                "$ProductName smoke test timed out after $TimeoutSeconds seconds and exact process termination could not be confirmed for PID $($process.Id)."
+            }
+        }
+        elseif ($exitCode -ne 0) {
+            $failureMessage = "$ProductName smoke test exited with code $exitCode."
+        }
+        elseif ($combinedOutput -notmatch $ExpectedMarkerPattern) {
+            $failureMessage = "$ProductName smoke test exited successfully but did not emit the expected help marker."
+        }
+        else {
+            $succeeded = $true
+        }
+    }
+    catch {
+        $caughtException = $_.Exception
+        $failureMessage = "$ProductName smoke test could not start or complete: $($_.Exception.Message)"
+        if ($null -ne $process) {
+            $terminationConfirmed = $false
+            try {
+                if (-not $process.HasExited) {
+                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                }
+            }
+            catch { }
+            try {
+                $terminationConfirmed = $process.HasExited -or $process.WaitForExit(5000)
+                if (-not $terminationConfirmed) {
+                    try { $process.Kill() } catch { }
+                    $terminationConfirmed = $process.WaitForExit(5000)
+                }
+                if ($terminationConfirmed) { $process.WaitForExit() }
+            }
+            catch { }
+        }
+        $stdout = if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) { (Get-Content -LiteralPath $stdoutPath -Raw | Out-String).Trim() } else { "" }
+        $stderr = if (Test-Path -LiteralPath $stderrPath -PathType Leaf) { (Get-Content -LiteralPath $stderrPath -Raw | Out-String).Trim() } else { "" }
+        $combinedOutput = (@($stderr, $stdout) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
+    }
+
+    if ($succeeded) {
+        Remove-Item -LiteralPath $stdoutPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+        return [pscustomobject]@{
+            productName = $ProductName
+            exitCode = $exitCode
+            markerMatched = $true
+            timedOut = $false
+        }
+    }
+
+    $failureDiagnostic = @(
+        $failureMessage,
+        $(if ([string]::IsNullOrWhiteSpace($combinedOutput)) { "No stdout/stderr was emitted." } else { $combinedOutput })
+    ) -join "`n"
+    Add-ToolkitDiagnosticLog -LogPath $LogPath -Message $failureDiagnostic
+    Remove-Item -LiteralPath $stdoutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+    $effectiveBlockerCode = $BlockerCode
+    $effectiveRetryable = $Retryable
+    $effectiveRequiresIT = $RequiresIT
+    $effectiveNextAction = $NextAction
+    if (Test-ToolkitExecutionBlocked -Text $failureDiagnostic -Exception $caughtException) {
+        $effectiveBlockerCode = "TOOL_EXECUTION_BLOCKED"
+        $effectiveRetryable = $false
+        $effectiveRequiresIT = $true
+        $effectiveNextAction = "Send latest.log and the blocked executable path to IT; do not bypass policy."
+    }
+    elseif (-not $terminationConfirmed) {
+        $effectiveRetryable = $false
+        $effectiveRequiresIT = $true
+        $effectiveNextAction = "Send latest.log and the reported PID to IT so they can confirm termination; do not continue while the process may still be running."
+    }
+    Throw-ToolkitFailure `
+        -Message $failureDiagnostic `
+        -BlockerCode $effectiveBlockerCode `
+        -FailureStage $FailureStage `
+        -Retryable $effectiveRetryable `
+        -RequiresIT $effectiveRequiresIT `
+        -NextAction $effectiveNextAction
 }
 
 function Assert-NonEmptyFile {

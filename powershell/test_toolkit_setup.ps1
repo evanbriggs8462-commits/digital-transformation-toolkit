@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [switch]$InventoryOnly,
-    [string]$EnvPath
+    [string]$EnvPath,
+    [string]$LogPath,
+    [switch]$SkipToolSmoke
 )
 
 Set-StrictMode -Version 2.0
@@ -9,6 +11,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "common.ps1")
 
 $checks = New-Object System.Collections.Generic.List[object]
+$structuredFailureException = $null
 
 function Add-Check {
     param(
@@ -110,9 +113,27 @@ if (($checks | Where-Object { $_.Check -eq ".env" }).Status -eq "PASS") {
             -MinimumVersion ([version]"2.28.0") `
             -ProductName "Tabular Editor 2" `
             -PublisherRegex '(?i)Tabular Editor|twoday|Kapacity'
+        if (-not $SkipToolSmoke) {
+            Invoke-ToolkitExecutableSmoke `
+                -Path $env:TE2_EXE_PATH `
+                -ProductName "Tabular Editor 2" `
+                -Arguments @('/?') `
+                -ExpectedMarkerPattern '(?i)(Tabular\s+Editor|Usage:|Command[- ]?line)' `
+                -BlockerCode "TOOL_VALIDATION_FAILED" `
+                -FailureStage "preflight" `
+                -Retryable $true `
+                -RequiresIT $false `
+                -NextAction "Close any running TabularEditor.exe process and allow START_HERE.ps1 to use its pinned portable repair." `
+                -LogPath $LogPath `
+                -TimeoutSeconds 15 | Out-Null
+        }
         Add-Check -Name "Tabular Editor 2" -Status "PASS" -Action ""
     }
     catch {
+        $metadata = Get-ToolkitFailureMetadata -ErrorObject $_
+        if ($null -eq $structuredFailureException -and $metadata.blockerCode -ne "UNCLASSIFIED_FAILURE") {
+            $structuredFailureException = $_.Exception
+        }
         Add-Check -Name "Tabular Editor 2" -Status "FAIL" -Action $_.Exception.Message
     }
 
@@ -130,9 +151,27 @@ if (($checks | Where-Object { $_.Check -eq ".env" }).Status -eq "PASS") {
                 -MinimumVersion ([version]"3.3.0") `
                 -ProductName "DAX Studio" `
                 -PublisherRegex '(?i)SQL\s*BI|SQLBI'
+            if (-not $SkipToolSmoke) {
+                Invoke-ToolkitExecutableSmoke `
+                    -Path $env:DSCMD_EXE_PATH `
+                    -ProductName "DAX Studio dscmd" `
+                    -Arguments @('--help') `
+                    -ExpectedMarkerPattern '(?i)(DAX\s*Studio|dscmd|Usage:)' `
+                    -BlockerCode "TOOL_VALIDATION_FAILED" `
+                    -FailureStage "preflight" `
+                    -Retryable $true `
+                    -RequiresIT $false `
+                    -NextAction "Close any running dscmd.exe process and allow START_HERE.ps1 to use its pinned portable repair." `
+                    -LogPath $LogPath `
+                    -TimeoutSeconds 15 | Out-Null
+            }
             Add-Check -Name "DAX Studio dscmd" -Status "PASS" -Action ""
         }
         catch {
+            $metadata = Get-ToolkitFailureMetadata -ErrorObject $_
+            if ($null -eq $structuredFailureException -and $metadata.blockerCode -ne "UNCLASSIFIED_FAILURE") {
+                $structuredFailureException = $_.Exception
+            }
             Add-Check -Name "DAX Studio dscmd" -Status "FAIL" -Action $_.Exception.Message
         }
     }
@@ -178,7 +217,21 @@ foreach ($check in $checks) {
 }
 
 if (@($checks | Where-Object { $_.Status -eq "FAIL" }).Count -gt 0) {
-    throw "Toolkit preflight failed. Fix every FAIL result and rerun START_HERE.ps1."
+    if ($null -ne $structuredFailureException) {
+        throw $structuredFailureException
+    }
+    $failedChecks = @(
+        $checks | Where-Object { $_.Status -eq "FAIL" } | ForEach-Object {
+            "{0}: {1}" -f $_.Check, $_.Action
+        }
+    )
+    Throw-ToolkitFailure `
+        -Message ("Toolkit preflight failed. " + ($failedChecks -join " | ")) `
+        -BlockerCode "PACKAGE_VALIDATION_FAILED" `
+        -FailureStage "preflight" `
+        -Retryable $true `
+        -RequiresIT $false `
+        -NextAction "Fix every reported FAIL result, then rerun START_HERE.ps1."
 }
 
 Write-Host "Toolkit preflight passed."

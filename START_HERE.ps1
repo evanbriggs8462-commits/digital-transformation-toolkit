@@ -10,17 +10,9 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-if ($SkipDaxStudio -and $RequireDaxStudio) {
-    throw "Use either -SkipDaxStudio or -RequireDaxStudio, not both."
-}
-
 $toolkitRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) { (Get-Location).Path } else { $PSScriptRoot }
 $toolkitRoot = [System.IO.Path]::GetFullPath($toolkitRoot)
 $commonPath = Join-Path $toolkitRoot "powershell\common.ps1"
-if (-not (Test-Path -LiteralPath $commonPath -PathType Leaf)) {
-    throw "BLOCKER: Toolkit is incomplete. Missing powershell\common.ps1"
-}
-. $commonPath
 
 $runtimeRoot = Join-Path $env:LOCALAPPDATA "DigitalTransformationToolkit\runtime"
 New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
@@ -38,6 +30,10 @@ $dscmdPath = $null
 $desktopTarget = $null
 $runMutex = $null
 $runMutexAcquired = $false
+$currentStage = "initialization"
+$toolkitTe2Path = Join-Path $env:LOCALAPPDATA "DigitalTransformationToolkit\tools\TabularEditor2\2.28.0\TabularEditor.exe"
+$toolkitDscmdPath = Join-Path $env:LOCALAPPDATA "DigitalTransformationToolkit\tools\DAXStudio\3.5.2\dscmd.exe"
+$commonLoaded = $false
 
 function Write-JsonAtomic {
     param(
@@ -48,6 +44,65 @@ function Write-JsonAtomic {
     $temp = "$Path.tmp"
     $Value | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temp -Encoding UTF8
     Move-Item -LiteralPath $temp -Destination $Path -Force
+}
+
+function Get-LauncherToolkitVersion {
+    $versionPath = Join-Path $toolkitRoot "VERSION"
+    if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
+        $rawValue = Get-Content -LiteralPath $versionPath -Raw
+        $value = if ($null -eq $rawValue) { "" } else { ([string]$rawValue).Trim() }
+        if (-not [string]::IsNullOrWhiteSpace($value)) { return $value }
+    }
+    return "unversioned"
+}
+
+function Remove-LauncherStaleFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+    }
+}
+
+function New-LauncherFailureException {
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Parameter(Mandatory = $true)][string]$BlockerCode,
+        [Parameter(Mandatory = $true)][string]$FailureStage,
+        [bool]$Retryable = $false,
+        [bool]$RequiresIT = $false,
+        [Parameter(Mandatory = $true)][string]$NextAction
+    )
+
+    $exception = New-Object System.InvalidOperationException $Message
+    $exception.Data["blockerCode"] = $BlockerCode
+    $exception.Data["failureStage"] = $FailureStage
+    $exception.Data["retryable"] = $Retryable
+    $exception.Data["requiresIT"] = $RequiresIT
+    $exception.Data["nextAction"] = $NextAction
+    return $exception
+}
+
+function Get-LauncherFailureMetadata {
+    param([Parameter(Mandatory = $true)][System.Management.Automation.ErrorRecord]$ErrorRecord)
+
+    if ($commonLoaded -and $null -ne (Get-Command Get-ToolkitFailureMetadata -ErrorAction SilentlyContinue)) {
+        return Get-ToolkitFailureMetadata `
+            -ErrorObject $ErrorRecord `
+            -DefaultBlockerCode "UNCLASSIFIED_FAILURE" `
+            -DefaultFailureStage $currentStage `
+            -DefaultRetryable $false `
+            -DefaultRequiresIT $false `
+            -DefaultNextAction "Return the exact blocker and latest.log; do not improvise or bypass policy."
+    }
+
+    $exception = $ErrorRecord.Exception
+    return [pscustomobject]@{
+        blockerCode = if ($exception.Data.Contains("blockerCode")) { [string]$exception.Data["blockerCode"] } else { "UNCLASSIFIED_FAILURE" }
+        failureStage = if ($exception.Data.Contains("failureStage")) { [string]$exception.Data["failureStage"] } else { $currentStage }
+        retryable = if ($exception.Data.Contains("retryable")) { [bool]$exception.Data["retryable"] } else { $false }
+        requiresIT = if ($exception.Data.Contains("requiresIT")) { [bool]$exception.Data["requiresIT"] } else { $false }
+        nextAction = if ($exception.Data.Contains("nextAction")) { [string]$exception.Data["nextAction"] } else { "Return the exact blocker and latest.log; do not improvise or bypass policy." }
+    }
 }
 
 function Write-Log {
@@ -61,17 +116,24 @@ function Write-State {
     param(
         [Parameter(Mandatory = $true)][string]$Status,
         [Parameter(Mandatory = $true)][string]$Stage,
-        [string]$LastError
+        [string]$LastError,
+        [string]$BlockerCode,
+        [bool]$Retryable = $false,
+        [bool]$RequiresIT = $false,
+        [string]$NextAction
     )
 
+    $script:currentStage = $Stage
+    $normalizedBlockerCode = if ([string]::IsNullOrWhiteSpace($BlockerCode)) { $null } else { $BlockerCode }
+    $normalizedNextAction = if ([string]::IsNullOrWhiteSpace($NextAction)) { $null } else { $NextAction }
     $state = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         runId = $runId
         status = $Status
         stage = $Stage
         updatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
         toolkitRoot = $toolkitRoot
-        toolkitVersion = (Get-ToolkitVersion)
+        toolkitVersion = (Get-LauncherToolkitVersion)
         pbixName = $resolvedPbixName
         desktopTarget = $desktopTarget
         outputFolder = $outputFolder
@@ -79,6 +141,10 @@ function Write-State {
         resultPath = $resultPath
         logPath = $logPath
         lastError = $LastError
+        blockerCode = $normalizedBlockerCode
+        retryable = $Retryable
+        requiresIT = $RequiresIT
+        nextAction = $normalizedNextAction
     }
     Write-JsonAtomic -Path $statePath -Value $state
 }
@@ -104,7 +170,7 @@ function Write-ToolkitEnvironmentFile {
     Set-Content -LiteralPath $EnvPath -Value $lines -Encoding UTF8
 }
 
-function Find-WingetPackageExecutable {
+function Get-WingetPackageExecutables {
     param(
         [Parameter(Mandatory = $true)][string]$PackagePrefix,
         [Parameter(Mandatory = $true)][string]$ExecutableName
@@ -117,61 +183,72 @@ function Find-WingetPackageExecutable {
 
     foreach ($package in @(
         Get-ChildItem -LiteralPath $wingetRoot -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "$PackagePrefix*" }
+            Where-Object { $_.Name -like "$PackagePrefix*" } |
+            Sort-Object FullName
     )) {
-        $match = Get-ChildItem -LiteralPath $package.FullName -Filter $ExecutableName -File -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-        if ($null -ne $match) {
-            return $match.FullName
+        foreach ($match in @(
+            Get-ChildItem -LiteralPath $package.FullName -Filter $ExecutableName -File -Recurse -ErrorAction SilentlyContinue |
+                Sort-Object FullName
+        )) {
+            Write-Output $match.FullName
         }
     }
-    return $null
 }
 
-function Get-InstalledTe2Path {
+function Get-ExternalTe2Paths {
+    $candidates = New-Object System.Collections.Generic.List[string]
     $command = Get-Command TabularEditor.exe -ErrorAction SilentlyContinue
     if ($null -ne $command -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
-        return $command.Source
+        $candidates.Add($command.Source) | Out-Null
     }
 
     $programFilesX86 = [System.Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
     $programFiles = [System.Environment]::GetEnvironmentVariable("ProgramFiles")
-    $candidates = New-Object System.Collections.Generic.List[string]
     if ($programFilesX86) { $candidates.Add((Join-Path $programFilesX86 "Tabular Editor\TabularEditor.exe")) | Out-Null }
     if ($programFiles) { $candidates.Add((Join-Path $programFiles "Tabular Editor\TabularEditor.exe")) | Out-Null }
     $candidates.Add((Join-Path $env:LOCALAPPDATA "Programs\Tabular Editor\TabularEditor.exe")) | Out-Null
-    $candidates.Add((Join-Path $env:LOCALAPPDATA "DigitalTransformationToolkit\tools\TabularEditor2\2.28.0\TabularEditor.exe")) | Out-Null
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return $candidate
-        }
+    foreach ($wingetPath in @(Get-WingetPackageExecutables -PackagePrefix "TabularEditor.TabularEditor.2" -ExecutableName "TabularEditor.exe")) {
+        $candidates.Add($wingetPath) | Out-Null
     }
 
-    return Find-WingetPackageExecutable -PackagePrefix "TabularEditor.TabularEditor.2" -ExecutableName "TabularEditor.exe"
+    $seen = @{}
+    foreach ($candidate in @($candidates)) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            $fullPath = [System.IO.Path]::GetFullPath($candidate)
+            if (-not $fullPath.Equals($toolkitTe2Path, [System.StringComparison]::OrdinalIgnoreCase) -and -not $seen.ContainsKey($fullPath)) {
+                $seen[$fullPath] = $true
+                Write-Output $fullPath
+            }
+        }
+    }
 }
 
-function Get-InstalledDscmdPath {
+function Get-ExternalDscmdPaths {
+    $candidates = New-Object System.Collections.Generic.List[string]
     $command = Get-Command dscmd.exe -ErrorAction SilentlyContinue
     if ($null -ne $command -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
-        return $command.Source
+        $candidates.Add($command.Source) | Out-Null
     }
 
     $programFiles = [System.Environment]::GetEnvironmentVariable("ProgramFiles")
     $programFilesX86 = [System.Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
-    $candidates = New-Object System.Collections.Generic.List[string]
     if ($programFiles) { $candidates.Add((Join-Path $programFiles "DAX Studio\dscmd.exe")) | Out-Null }
     if ($programFilesX86) { $candidates.Add((Join-Path $programFilesX86 "DAX Studio\dscmd.exe")) | Out-Null }
     $candidates.Add((Join-Path $env:LOCALAPPDATA "Programs\DAX Studio\dscmd.exe")) | Out-Null
-    $candidates.Add((Join-Path $env:LOCALAPPDATA "DigitalTransformationToolkit\tools\DAXStudio\3.5.2\dscmd.exe")) | Out-Null
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return $candidate
-        }
+    foreach ($wingetPath in @(Get-WingetPackageExecutables -PackagePrefix "DaxStudio.DaxStudio" -ExecutableName "dscmd.exe")) {
+        $candidates.Add($wingetPath) | Out-Null
     }
 
-    return Find-WingetPackageExecutable -PackagePrefix "DaxStudio.DaxStudio" -ExecutableName "dscmd.exe"
+    $seen = @{}
+    foreach ($candidate in @($candidates)) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            $fullPath = [System.IO.Path]::GetFullPath($candidate)
+            if (-not $fullPath.Equals($toolkitDscmdPath, [System.StringComparison]::OrdinalIgnoreCase) -and -not $seen.ContainsKey($fullPath)) {
+                $seen[$fullPath] = $true
+                Write-Output $fullPath
+            }
+        }
+    }
 }
 
 function Test-DotNetFramework46OrLater {
@@ -220,7 +297,203 @@ function Test-PolicyBlockText {
     if ([string]::IsNullOrWhiteSpace($Text)) {
         return $false
     }
-    return ($Text -match '(?i)(blocked by.*policy|group policy|policy restriction|administrator has blocked|0x800704ec|access is denied)')
+    return ($Text -match '(?i)(blocked by.*policy|group policy|policy restriction|administrator has blocked|AppLocker|WDAC|Windows Defender Application Control|0x800704ec|0x800704c7|error\s*740|elevation required|requested operation requires elevation|UAC|access is denied|unauthorized)')
+}
+
+function Get-ToolCandidateAssessment {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$ExpectedFileName,
+        [Parameter(Mandatory = $true)][version]$MinimumVersion,
+        [Parameter(Mandatory = $true)][string]$ProductName,
+        [Parameter(Mandatory = $true)][string]$PublisherRegex,
+        [Parameter(Mandatory = $true)][string[]]$SmokeArguments,
+        [Parameter(Mandatory = $true)][string]$SmokeMarkerPattern,
+        [string]$ExactVersionPrefix
+    )
+
+    try {
+        Assert-ExecutableFile -Path $Path -VariableName $ProductName -ExpectedFileName $ExpectedFileName
+        Assert-MinimumFileVersion `
+            -Path $Path `
+            -MinimumVersion $MinimumVersion `
+            -ProductName $ProductName `
+            -PublisherRegex $PublisherRegex
+        if (-not [string]::IsNullOrWhiteSpace($ExactVersionPrefix)) {
+            $productVersionText = [string](Get-Item -LiteralPath $Path).VersionInfo.ProductVersion
+            $productVersionMatch = [regex]::Match($productVersionText, '\d+(?:\.\d+){1,3}')
+            if (-not $productVersionMatch.Success -or
+                (-not $productVersionMatch.Value.Equals($ExactVersionPrefix, [System.StringComparison]::OrdinalIgnoreCase) -and
+                -not $productVersionMatch.Value.StartsWith(($ExactVersionPrefix + "."), [System.StringComparison]::OrdinalIgnoreCase))) {
+                throw "$ProductName toolkit-owned product version must be $ExactVersionPrefix; found $productVersionText."
+            }
+        }
+        Invoke-ToolkitExecutableSmoke `
+            -Path $Path `
+            -ProductName $ProductName `
+            -Arguments $SmokeArguments `
+            -ExpectedMarkerPattern $SmokeMarkerPattern `
+            -BlockerCode "TOOL_VALIDATION_FAILED" `
+            -FailureStage "tool-readiness" `
+            -Retryable $false `
+            -RequiresIT $false `
+            -NextAction "Use another validated candidate or let START_HERE.ps1 perform its one portable repair attempt." `
+            -LogPath $logPath `
+            -TimeoutSeconds 15 | Out-Null
+
+        return [pscustomobject]@{
+            valid = $true
+            path = $Path
+            source = $Source
+            message = $null
+            blockerCode = $null
+            retryable = $false
+            requiresIT = $false
+            nextAction = $null
+        }
+    }
+    catch {
+        $metadata = Get-ToolkitFailureMetadata `
+            -ErrorObject $_ `
+            -DefaultBlockerCode "TOOL_VALIDATION_FAILED" `
+            -DefaultFailureStage "tool-readiness" `
+            -DefaultRetryable $false `
+            -DefaultRequiresIT $false `
+            -DefaultNextAction "Use another validated candidate or let START_HERE.ps1 perform its one portable repair attempt."
+        if (Test-PolicyBlockText -Text $_.Exception.Message) {
+            $metadata.blockerCode = "TOOL_EXECUTION_BLOCKED"
+            $metadata.retryable = $false
+            $metadata.requiresIT = $true
+            $metadata.nextAction = "Send latest.log and the blocked executable path '$Path' to IT; do not bypass policy."
+        }
+        return [pscustomobject]@{
+            valid = $false
+            path = $Path
+            source = $Source
+            message = $_.Exception.Message
+            blockerCode = $metadata.blockerCode
+            retryable = [bool]$metadata.retryable
+            requiresIT = [bool]$metadata.requiresIT
+            nextAction = $metadata.nextAction
+        }
+    }
+}
+
+function Write-RejectedToolCandidate {
+    param([Parameter(Mandatory = $true)]$Assessment)
+    Write-Log ("Rejected {0} candidate '{1}': {2}" -f $Assessment.source, $Assessment.path, $Assessment.message)
+}
+
+function Assert-ToolPolicyNotBlocked {
+    param(
+        [Parameter(Mandatory = $true)][string]$ProductName,
+        [Parameter(Mandatory = $true)]$Assessment
+    )
+
+    if ($Assessment.requiresIT -or $Assessment.blockerCode -eq "TOOL_EXECUTION_BLOCKED") {
+        Throw-FinalToolFailure -ProductName $ProductName -LastFailure $Assessment -RepairAttempted $false
+    }
+}
+
+function Get-PreferredToolFailure {
+    param(
+        $Current,
+        [Parameter(Mandatory = $true)]$Candidate
+    )
+
+    if ($null -ne $Current -and $Current.requiresIT -and -not $Candidate.requiresIT) {
+        return $Current
+    }
+    return $Candidate
+}
+
+function Get-ToolErrorAssessment {
+    param(
+        [Parameter(Mandatory = $true)][System.Management.Automation.ErrorRecord]$ErrorRecord,
+        [Parameter(Mandatory = $true)][string]$Source,
+        [string]$Path
+    )
+
+    $metadata = Get-ToolkitFailureMetadata `
+        -ErrorObject $ErrorRecord `
+        -DefaultBlockerCode "TOOL_REPAIR_FAILED" `
+        -DefaultFailureStage "tool-readiness" `
+        -DefaultRetryable $false `
+        -DefaultRequiresIT $false `
+        -DefaultNextAction "Return latest.log; do not install unverified software or bypass policy."
+    if (Test-PolicyBlockText -Text $ErrorRecord.Exception.Message) {
+        $metadata.blockerCode = "TOOL_EXECUTION_BLOCKED"
+        $metadata.retryable = $false
+        $metadata.requiresIT = $true
+        $metadata.nextAction = "Send latest.log and the blocked executable path to IT; do not bypass policy."
+    }
+    elseif ($ErrorRecord.Exception.Message -match '(?i)requires \.NET Framework') {
+        $metadata.blockerCode = "TOOL_REPAIR_FAILED"
+        $metadata.retryable = $false
+        $metadata.requiresIT = $true
+        $metadata.nextAction = "Ask IT to confirm the required .NET Framework runtime is installed; do not launch an elevated installer."
+    }
+    return [pscustomobject]@{
+        valid = $false
+        path = $Path
+        source = $Source
+        message = $ErrorRecord.Exception.Message
+        blockerCode = $metadata.blockerCode
+        retryable = [bool]$metadata.retryable
+        requiresIT = [bool]$metadata.requiresIT
+        nextAction = $metadata.nextAction
+    }
+}
+
+function Throw-FinalToolFailure {
+    param(
+        [Parameter(Mandatory = $true)][string]$ProductName,
+        $LastFailure,
+        [bool]$RepairAttempted
+    )
+
+    if ($null -ne $LastFailure -and $LastFailure.blockerCode -eq "TOOL_EXECUTION_BLOCKED") {
+        Throw-ToolkitFailure `
+            -Message "$ProductName execution was blocked. $($LastFailure.message)" `
+            -BlockerCode "TOOL_EXECUTION_BLOCKED" `
+            -FailureStage "tool-readiness" `
+            -Retryable $false `
+            -RequiresIT $true `
+            -NextAction $LastFailure.nextAction
+    }
+
+    if ($null -ne $LastFailure -and $LastFailure.requiresIT) {
+        Throw-ToolkitFailure `
+            -Message "$ProductName requires an IT-controlled prerequisite. $($LastFailure.message)" `
+            -BlockerCode $LastFailure.blockerCode `
+            -FailureStage "tool-readiness" `
+            -Retryable $false `
+            -RequiresIT $true `
+            -NextAction $LastFailure.nextAction
+    }
+
+    $detail = if ($null -ne $LastFailure -and -not [string]::IsNullOrWhiteSpace([string]$LastFailure.message)) {
+        [string]$LastFailure.message
+    }
+    else {
+        "No compatible executable was found."
+    }
+    $isTransient = $detail -match '(?i)(timed out|temporar|network|download|connection|locked|being used by another process)'
+    $blockerCode = if ($RepairAttempted) { "TOOL_REPAIR_FAILED" } else { "TOOL_VALIDATION_FAILED" }
+    $nextAction = if ($isTransient) {
+        "Wait 30 seconds and confirm no process is locking the toolkit tool directory."
+    }
+    else {
+        "Return latest.log and the rejected tool paths; do not install unverified software or bypass policy."
+    }
+    Throw-ToolkitFailure `
+        -Message "$ProductName is unavailable after bounded validation and repair. $detail" `
+        -BlockerCode $blockerCode `
+        -FailureStage "tool-readiness" `
+        -Retryable $isTransient `
+        -RequiresIT $false `
+        -NextAction $nextAction
 }
 
 function Invoke-WingetInstall {
@@ -393,55 +666,124 @@ function Install-Te2Portable {
     return $path
 }
 
+function Get-Te2CandidateAssessment {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Source,
+        [bool]$ToolkitOwned = $false
+    )
+
+    return Get-ToolCandidateAssessment `
+        -Path $Path `
+        -Source $Source `
+        -ExpectedFileName "TabularEditor.exe" `
+        -MinimumVersion ([version]"2.28.0") `
+        -ProductName "Tabular Editor 2" `
+        -PublisherRegex '(?i)Tabular Editor|twoday|Kapacity' `
+        -SmokeArguments @('/?') `
+        -SmokeMarkerPattern '(?i)(Tabular\s+Editor\s+2\.28\.0|Usage:)' `
+        -ExactVersionPrefix $(if ($ToolkitOwned) { "2.28.0" } else { $null })
+}
+
 function Ensure-Te2 {
-    $minimum = [version]"2.28.0"
-    $path = Get-InstalledTe2Path
-    if ($path) {
+    $repairAttempted = $false
+    $lastFailure = $null
+    $toolkitRootPath = Split-Path -Parent $toolkitTe2Path
+
+    if (Test-Path -LiteralPath $toolkitRootPath -PathType Container) {
+        $assessment = Get-Te2CandidateAssessment -Path $toolkitTe2Path -Source "toolkit-owned portable TE2" -ToolkitOwned $true
+        if ($assessment.valid) {
+            Write-Log "Selected validated toolkit-owned Tabular Editor 2: $toolkitTe2Path"
+            return $toolkitTe2Path
+        }
+        Write-RejectedToolCandidate -Assessment $assessment
+        Assert-ToolPolicyNotBlocked -ProductName "Tabular Editor 2" -Assessment $assessment
+        $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
+        $repairAttempted = $true
         try {
-            $version = [version](Get-ExecutableFileVersion -Path $path -ProductName "Tabular Editor 2")
-            if ($version -ge $minimum) {
-                Assert-MinimumFileVersion -Path $path -MinimumVersion $minimum -ProductName "Tabular Editor 2" -PublisherRegex '(?i)Tabular Editor|twoday|Kapacity'
+            Write-Log "Toolkit-owned Tabular Editor 2 is incomplete or invalid; reinstalling it once from the pinned portable archive."
+            $path = Install-Te2Portable
+            $assessment = Get-Te2CandidateAssessment -Path $path -Source "repaired toolkit-owned portable TE2" -ToolkitOwned $true
+            if ($assessment.valid) {
+                $fixes.Add("Reinstalled and revalidated toolkit-owned portable Tabular Editor 2 once") | Out-Null
                 return $path
             }
-            Write-Log "Existing Tabular Editor 2 $version is below $minimum; using an isolated current portable copy instead of elevating/upgrading the installed copy."
+            Write-RejectedToolCandidate -Assessment $assessment
+            Assert-ToolPolicyNotBlocked -ProductName "Tabular Editor 2" -Assessment $assessment
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
         }
         catch {
-            Write-Log "Existing TE2 was not usable: $($_.Exception.Message)"
+            $repairFailure = Get-ToolErrorAssessment -ErrorRecord $_ -Source "toolkit-owned portable TE2 repair" -Path $toolkitTe2Path
+            Write-RejectedToolCandidate -Assessment $repairFailure
+            Assert-ToolPolicyNotBlocked -ProductName "Tabular Editor 2" -Assessment $repairFailure
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $repairFailure
         }
     }
 
-    if (-not (Test-DotNetFramework46OrLater)) {
-        throw "Tabular Editor 2 requires .NET Framework 4.6 or later. The runtime was not detected. No elevated dependency installer will be launched."
+    foreach ($candidate in @(Get-ExternalTe2Paths)) {
+        $assessment = Get-Te2CandidateAssessment -Path $candidate -Source "external TE2 candidate"
+        if ($assessment.valid) {
+            Write-Log "Selected validated external Tabular Editor 2: $candidate"
+            return $candidate
+        }
+        Write-RejectedToolCandidate -Assessment $assessment
+        Assert-ToolPolicyNotBlocked -ProductName "Tabular Editor 2" -Assessment $assessment
+        $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
     }
 
-    # The official WinGet TE2 2.28 package is itself the portable ZIP. We always
-    # skip its Developer Pack dependency because the required runtime was just
-    # verified. This keeps the supported WinGet path user-scope and non-elevating.
-    $attempt = Invoke-WingetInstall `
-        -Id "TabularEditor.TabularEditor.2" `
-        -Version "2.28.0" `
-        -SkipDependencies
-    if ($attempt.PolicyBlocked) {
-        throw "Tabular Editor 2 installation was blocked by organizational policy. No security control was changed."
-    }
-
-    $path = Get-InstalledTe2Path
-    if ($path) {
+    if (-not $repairAttempted) {
         try {
-            $version = [version](Get-ExecutableFileVersion -Path $path -ProductName "Tabular Editor 2")
-            if ($version -ge $minimum) {
-                Assert-MinimumFileVersion -Path $path -MinimumVersion $minimum -ProductName "Tabular Editor 2" -PublisherRegex '(?i)Tabular Editor|twoday|Kapacity'
-                $fixes.Add("Installed Tabular Editor 2 through user-scope silent WinGet") | Out-Null
+            if (-not (Test-DotNetFramework46OrLater)) {
+                throw "Tabular Editor 2 requires .NET Framework 4.6 or later. The runtime was not detected. No elevated dependency installer will be launched."
+            }
+
+            # The official WinGet package is portable. Try the existing bounded
+            # user-scope path once before the pinned direct portable fallback.
+            $attempt = Invoke-WingetInstall `
+                -Id "TabularEditor.TabularEditor.2" `
+                -Version "2.28.0" `
+                -SkipDependencies
+            if ($attempt.PolicyBlocked) {
+                Throw-ToolkitFailure `
+                    -Message "Tabular Editor 2 installation was blocked by organizational policy. No security control was changed." `
+                    -BlockerCode "TOOL_EXECUTION_BLOCKED" `
+                    -FailureStage "tool-readiness" `
+                    -Retryable $false `
+                    -RequiresIT $true `
+                    -NextAction "Send latest.log to IT and request approval for the pinned Tabular Editor 2 executable; do not bypass policy."
+            }
+            foreach ($candidate in @(Get-ExternalTe2Paths)) {
+                $assessment = Get-Te2CandidateAssessment -Path $candidate -Source "post-WinGet TE2 candidate"
+                if ($assessment.valid) {
+                    $fixes.Add("Installed and validated Tabular Editor 2 through user-scope silent WinGet") | Out-Null
+                    return $candidate
+                }
+                Write-RejectedToolCandidate -Assessment $assessment
+                Assert-ToolPolicyNotBlocked -ProductName "Tabular Editor 2" -Assessment $assessment
+                $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
+            }
+
+            Write-Log "WinGet did not yield a usable TE2 executable; installing the hash-pinned official portable ZIP once with no elevation."
+            $repairAttempted = $true
+            $path = Install-Te2Portable
+            $assessment = Get-Te2CandidateAssessment -Path $path -Source "new toolkit-owned portable TE2" -ToolkitOwned $true
+            if ($assessment.valid) {
+                $fixes.Add("Installed and validated hash-verified portable Tabular Editor 2 under LOCALAPPDATA") | Out-Null
                 return $path
             }
+            Write-RejectedToolCandidate -Assessment $assessment
+            Assert-ToolPolicyNotBlocked -ProductName "Tabular Editor 2" -Assessment $assessment
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
         }
-        catch { }
+        catch {
+            $installFailure = Get-ToolErrorAssessment -ErrorRecord $_ -Source "Tabular Editor 2 bounded install" -Path $toolkitTe2Path
+            Write-RejectedToolCandidate -Assessment $installFailure
+            Assert-ToolPolicyNotBlocked -ProductName "Tabular Editor 2" -Assessment $installFailure
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $installFailure
+        }
     }
 
-    Write-Log "WinGet did not yield a usable TE2 executable; using the hash-pinned official portable ZIP with no elevation."
-    $path = Install-Te2Portable
-    $fixes.Add("Installed hash-verified portable Tabular Editor 2 under LOCALAPPDATA") | Out-Null
-    return $path
+    Throw-FinalToolFailure -ProductName "Tabular Editor 2" -LastFailure $lastFailure -RepairAttempted $repairAttempted
 }
 
 function Install-DaxStudioPortable {
@@ -461,38 +803,114 @@ function Install-DaxStudioPortable {
     return $path
 }
 
+function Get-DaxCandidateAssessment {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Source,
+        [bool]$ToolkitOwned = $false
+    )
+
+    return Get-ToolCandidateAssessment `
+        -Path $Path `
+        -Source $Source `
+        -ExpectedFileName "dscmd.exe" `
+        -MinimumVersion ([version]"3.3.0") `
+        -ProductName "DAX Studio" `
+        -PublisherRegex '(?i)SQL\s*BI|SQLBI' `
+        -SmokeArguments @('--help') `
+        -SmokeMarkerPattern '(?i)(DSCMD\s+v?3\.5\.2|Usage:)' `
+        -ExactVersionPrefix $(if ($ToolkitOwned) { "3.5.2" } else { $null })
+}
+
 function Ensure-DaxStudio {
-    $path = Get-InstalledDscmdPath
-    if ($path) {
-        try {
-            $version = [version](Get-ExecutableFileVersion -Path $path -ProductName "DAX Studio")
-            if ($version -ge [version]"3.3.0") {
-                Assert-MinimumFileVersion -Path $path -MinimumVersion ([version]"3.3.0") -ProductName "DAX Studio" -PublisherRegex '(?i)SQL\s*BI|SQLBI'
-                return $path
-            }
-            if ($SkipDaxStudio) {
-                return $null
-            }
-            Write-Log "Existing DAX Studio $version is below 3.3.0; using an isolated portable 3.5.2 copy instead of upgrading the installed copy."
-        }
-        catch {
-            if ($SkipDaxStudio) { return $null }
-            Write-Log "Existing DAX Studio was not usable: $($_.Exception.Message)"
-        }
-    }
     if ($SkipDaxStudio) {
+        Write-Log "DAX Studio readiness intentionally skipped for a metadata-only task."
         return $null
     }
 
+    $repairAttempted = $false
+    $lastFailure = $null
+    $toolkitRootPath = Split-Path -Parent $toolkitDscmdPath
+
+    if (Test-Path -LiteralPath $toolkitRootPath -PathType Container) {
+        $assessment = Get-DaxCandidateAssessment -Path $toolkitDscmdPath -Source "toolkit-owned portable DAX Studio" -ToolkitOwned $true
+        if ($assessment.valid) {
+            Write-Log "Selected validated toolkit-owned DAX Studio: $toolkitDscmdPath"
+            return $toolkitDscmdPath
+        }
+        Write-RejectedToolCandidate -Assessment $assessment
+        Assert-ToolPolicyNotBlocked -ProductName "DAX Studio" -Assessment $assessment
+        $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
+        $repairAttempted = $true
+        try {
+            Write-Log "Toolkit-owned DAX Studio is incomplete or invalid; reinstalling it once from the pinned portable archive."
+            $path = Install-DaxStudioPortable
+            $assessment = Get-DaxCandidateAssessment -Path $path -Source "repaired toolkit-owned portable DAX Studio" -ToolkitOwned $true
+            if ($assessment.valid) {
+                $fixes.Add("Reinstalled and revalidated toolkit-owned portable DAX Studio once") | Out-Null
+                return $path
+            }
+            Write-RejectedToolCandidate -Assessment $assessment
+            Assert-ToolPolicyNotBlocked -ProductName "DAX Studio" -Assessment $assessment
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
+        }
+        catch {
+            $repairFailure = Get-ToolErrorAssessment -ErrorRecord $_ -Source "toolkit-owned portable DAX Studio repair" -Path $toolkitDscmdPath
+            Write-RejectedToolCandidate -Assessment $repairFailure
+            Assert-ToolPolicyNotBlocked -ProductName "DAX Studio" -Assessment $repairFailure
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $repairFailure
+        }
+    }
+
+    foreach ($candidate in @(Get-ExternalDscmdPaths)) {
+        $assessment = Get-DaxCandidateAssessment -Path $candidate -Source "external DAX Studio candidate"
+        if ($assessment.valid) {
+            Write-Log "Selected validated external DAX Studio: $candidate"
+            return $candidate
+        }
+        Write-RejectedToolCandidate -Assessment $assessment
+        Assert-ToolPolicyNotBlocked -ProductName "DAX Studio" -Assessment $assessment
+        $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
+    }
+
+    if (-not $repairAttempted) {
+        try {
+            Write-Log "DAX Studio not found/current; installing the official portable release once under LOCALAPPDATA (no UAC/admin install)."
+            $repairAttempted = $true
+            $path = Install-DaxStudioPortable
+            $assessment = Get-DaxCandidateAssessment -Path $path -Source "new toolkit-owned portable DAX Studio" -ToolkitOwned $true
+            if ($assessment.valid) {
+                $fixes.Add("Installed and validated signed portable DAX Studio under LOCALAPPDATA") | Out-Null
+                return $path
+            }
+            Write-RejectedToolCandidate -Assessment $assessment
+            Assert-ToolPolicyNotBlocked -ProductName "DAX Studio" -Assessment $assessment
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $assessment
+        }
+        catch {
+            $installFailure = Get-ToolErrorAssessment -ErrorRecord $_ -Source "DAX Studio bounded install" -Path $toolkitDscmdPath
+            Write-RejectedToolCandidate -Assessment $installFailure
+            Assert-ToolPolicyNotBlocked -ProductName "DAX Studio" -Assessment $installFailure
+            $lastFailure = Get-PreferredToolFailure -Current $lastFailure -Candidate $installFailure
+        }
+    }
+
     try {
-        Write-Log "DAX Studio not found/current; installing the official portable release under LOCALAPPDATA (no UAC/admin install)."
-        $path = Install-DaxStudioPortable
-        $fixes.Add("Installed signed portable DAX Studio under LOCALAPPDATA") | Out-Null
-        return $path
+        Throw-FinalToolFailure -ProductName "DAX Studio" -LastFailure $lastFailure -RepairAttempted $repairAttempted
     }
     catch {
-        $message = "DAX Studio portable setup failed. Core PBIX metadata extraction can still run with TE2. $($_.Exception.Message)"
-        if ($RequireDaxStudio) { throw $message }
+        $metadata = Get-ToolkitFailureMetadata -ErrorObject $_ -DefaultFailureStage "tool-readiness"
+        $message = "DAX Studio is unavailable after bounded validation and repair. Core PBIX metadata extraction can still run with TE2. $($_.Exception.Message)"
+        if ($RequireDaxStudio) {
+            if ($metadata.blockerCode -eq "TOOL_EXECUTION_BLOCKED") { throw $_.Exception }
+            Throw-ToolkitFailure `
+                -Message $message `
+                -BlockerCode "DAX_REQUIRED_UNAVAILABLE" `
+                -FailureStage "tool-readiness" `
+                -Retryable ([bool]$metadata.retryable) `
+                -RequiresIT ([bool]$metadata.requiresIT) `
+                -NextAction $metadata.nextAction
+        }
         $warnings.Add($message) | Out-Null
         return $null
     }
@@ -503,10 +921,16 @@ function Write-FinalResult {
         [Parameter(Mandatory = $true)][string]$Result,
         [Parameter(Mandatory = $true)][int]$ExitCode,
         [string]$Blocker,
-        [string]$Status
+        [string]$Status,
+        [string]$BlockerCode,
+        [bool]$Retryable = $false,
+        [bool]$RequiresIT = $false,
+        [string]$NextAction
     )
 
     $artifactCounts = $null
+    $normalizedBlockerCode = if ([string]::IsNullOrWhiteSpace($BlockerCode)) { $null } else { $BlockerCode }
+    $normalizedNextAction = if ([string]::IsNullOrWhiteSpace($NextAction)) { $null } else { $NextAction }
     if ($manifestPath -and (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         try {
             $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -520,13 +944,13 @@ function Write-FinalResult {
     }
 
     $resultObject = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         runId = $runId
         result = $Result
         status = $Status
         exitCode = $ExitCode
         generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
-        toolkitVersion = (Get-ToolkitVersion)
+        toolkitVersion = (Get-LauncherToolkitVersion)
         toolkitRoot = $toolkitRoot
         pbixName = $resolvedPbixName
         desktopTarget = $desktopTarget
@@ -547,10 +971,20 @@ function Write-FinalResult {
         warnings = @($warnings)
         artifactCounts = $artifactCounts
         blocker = $Blocker
+        blockerCode = $normalizedBlockerCode
+        retryable = $Retryable
+        requiresIT = $RequiresIT
+        nextAction = $normalizedNextAction
     }
     Write-JsonAtomic -Path $resultPath -Value $resultObject
 
-    Write-Host ("Command: powershell.exe -NoProfile -File `"{0}`"{1}" -f (Join-Path $toolkitRoot "START_HERE.ps1"), $(if ($resolvedPbixName) { " -PbixName `"$resolvedPbixName`"" } else { "" }))
+    $displayArguments = New-Object System.Collections.Generic.List[string]
+    if ($resolvedPbixName) { $displayArguments.Add("-PbixName `"$resolvedPbixName`"") | Out-Null }
+    if ($SkipDaxStudio) { $displayArguments.Add("-SkipDaxStudio") | Out-Null }
+    if ($RequireDaxStudio) { $displayArguments.Add("-RequireDaxStudio") | Out-Null }
+    if ($SetupOnly) { $displayArguments.Add("-SetupOnly") | Out-Null }
+    $displaySuffix = if ($displayArguments.Count -gt 0) { " " + (@($displayArguments) -join " ") } else { "" }
+    Write-Host ("Command: powershell.exe -NoProfile -File `"{0}`"{1}" -f (Join-Path $toolkitRoot "START_HERE.ps1"), $displaySuffix)
     Write-Host "ExitCode: $ExitCode"
     Write-Host ("Fixes: {0}" -f $(if ($fixes.Count -gt 0) { @($fixes) -join "; " } else { "none" }))
     Write-Host ("OutputFolder: {0}" -f $(if ($outputFolder) { $outputFolder } else { "" }))
@@ -577,43 +1011,106 @@ if (-not $runMutexAcquired) {
     exit 2
 }
 
+# Capture the old state before binding shared evidence to this runId. Only a
+# genuinely non-terminal prior run is reported as interrupted.
+$previousState = $null
+if (Test-Path -LiteralPath $statePath -PathType Leaf) {
+    try { $previousState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json } catch { $previousState = $null }
+}
+
 # Invalidate prior success evidence immediately after the concurrency guard is
 # acquired. Writing the new runId first makes an older result non-authoritative
 # even if result.json is locked and cannot be deleted.
 try {
     Write-State -Status "running" -Stage "result-invalidation"
-    Remove-StaleFile -Path $resultPath
+    Remove-LauncherStaleFile -Path $resultPath
 }
 catch {
     $invalidationError = "Unable to invalidate prior success evidence: $($_.Exception.Message)"
-    try { Remove-StaleFile -Path $resultPath } catch { }
-    try { Write-State -Status "failed" -Stage "result-invalidation-failed" -LastError $invalidationError } catch { }
+    $nextAction = "Close any process holding result.json and preserve the mismatched state/result runIds as failure evidence."
+    try { Remove-LauncherStaleFile -Path $resultPath } catch { }
+    try {
+        Write-State `
+            -Status "failed" `
+            -Stage "result-invalidation-failed" `
+            -LastError $invalidationError `
+            -BlockerCode "RESULT_INVALIDATION_FAILED" `
+            -Retryable $false `
+            -RequiresIT $false `
+            -NextAction $nextAction
+    }
+    catch { }
     [Console]::Error.WriteLine("BLOCKER: $invalidationError")
     try { $runMutex.ReleaseMutex() } catch { }
     $runMutex.Dispose()
     exit 1
 }
 
-# Retain the previous state long enough to report an interrupted run. A prior
-# result is never valid evidence for the new run and was already removed.
-$previousState = $null
-if (Test-Path -LiteralPath $statePath -PathType Leaf) {
-    try { $previousState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json } catch { $previousState = $null }
-}
-Set-Content -LiteralPath $logPath -Value "" -Encoding UTF8
-if ($null -ne $previousState) {
-    $previousStatus = $previousState.PSObject.Properties["status"]
-    $previousStage = $previousState.PSObject.Properties["stage"]
-    if ($null -ne $previousStatus -and [string]$previousStatus.Value -eq "running") {
-        $stageText = if ($null -ne $previousStage) { [string]$previousStage.Value } else { "unknown" }
-        Write-Log "Previous run was interrupted at stage '$stageText'; re-validating idempotently."
-    }
-}
-
 try {
+    try {
+        Set-Content -LiteralPath $logPath -Value "" -Encoding UTF8
+        if ($null -ne $previousState) {
+            $previousStatus = $previousState.PSObject.Properties["status"]
+            $previousStage = $previousState.PSObject.Properties["stage"]
+            $previousRunId = $previousState.PSObject.Properties["runId"]
+            if ($null -ne $previousStatus -and [string]$previousStatus.Value -eq "running") {
+                $stageText = if ($null -ne $previousStage) { [string]$previousStage.Value } else { "unknown" }
+                $runIdText = if ($null -ne $previousRunId) { [string]$previousRunId.Value } else { "unknown" }
+                Write-Log "Previous run '$runIdText' was interrupted at stage '$stageText'; re-validating idempotently."
+            }
+        }
+    }
+    catch {
+        throw (New-LauncherFailureException `
+            -Message "Unable to initialize latest.log: $($_.Exception.Message)" `
+            -BlockerCode "UNCLASSIFIED_FAILURE" `
+            -FailureStage "runtime-validation" `
+            -Retryable $false `
+            -RequiresIT $false `
+            -NextAction "Close any process holding latest.log, then report the state.json blocker without treating an older result as current.")
+    }
+
+    try {
+        if (-not (Test-Path -LiteralPath $commonPath -PathType Leaf)) {
+            throw "Toolkit is incomplete. Missing powershell\common.ps1"
+        }
+        . $commonPath
+        $commonLoaded = $true
+    }
+    catch {
+        throw (New-LauncherFailureException `
+            -Message $_.Exception.Message `
+            -BlockerCode "PACKAGE_VALIDATION_FAILED" `
+            -FailureStage "runtime-validation" `
+            -Retryable $false `
+            -RequiresIT $false `
+            -NextAction "Stop and obtain a fresh copy of the authoritative RC2 package; do not run an incomplete toolkit.")
+    }
+
+    if ($SkipDaxStudio -and $RequireDaxStudio) {
+        throw (New-LauncherFailureException `
+            -Message "Use either -SkipDaxStudio or -RequireDaxStudio, not both." `
+            -BlockerCode "UNCLASSIFIED_FAILURE" `
+            -FailureStage "runtime-validation" `
+            -Retryable $false `
+            -RequiresIT $false `
+            -NextAction "Choose -SkipDaxStudio for metadata or -RequireDaxStudio for calculations, then start a new run.")
+    }
+
     Write-State -Status "running" -Stage "runtime-validation"
-    Assert-ToolkitRuntimeFilesPresent
-    Assert-ToolkitExecutionFilesClean
+    try {
+        Assert-ToolkitRuntimeFilesPresent
+        Assert-ToolkitExecutionFilesClean
+    }
+    catch {
+        Throw-ToolkitFailure `
+            -Message $_.Exception.Message `
+            -BlockerCode "PACKAGE_VALIDATION_FAILED" `
+            -FailureStage "runtime-validation" `
+            -Retryable $false `
+            -RequiresIT $false `
+            -NextAction "Stop and obtain a fresh copy of the authoritative RC2 package; do not run modified toolkit files."
+    }
     Write-Log "Toolkit runtime files validated."
 
     Write-State -Status "running" -Stage "tool-discovery"
@@ -643,10 +1140,10 @@ try {
     Write-State -Status "running" -Stage "preflight"
     $preflightScript = Join-Path $toolkitRoot "powershell\test_toolkit_setup.ps1"
     if ($dscmdPath) {
-        & $preflightScript -EnvPath $envPath
+        & $preflightScript -EnvPath $envPath -LogPath $logPath -SkipToolSmoke
     }
     else {
-        & $preflightScript -InventoryOnly -EnvPath $envPath
+        & $preflightScript -InventoryOnly -EnvPath $envPath -LogPath $logPath -SkipToolSmoke
     }
     Write-Log "Preflight passed."
 
@@ -657,7 +1154,18 @@ try {
     }
 
     Write-State -Status "running" -Stage "pbix-discovery"
-    $openTargets = @(Get-PowerBIDesktopTargets)
+    try {
+        $openTargets = @(Get-PowerBIDesktopTargets)
+    }
+    catch {
+        Throw-ToolkitFailure `
+            -Message $_.Exception.Message `
+            -BlockerCode "PBIX_CONNECTION_FAILED" `
+            -FailureStage "pbix-discovery" `
+            -Retryable $true `
+            -RequiresIT $false `
+            -NextAction "Keep Power BI Desktop open and wait for the model to finish loading."
+    }
     if ([string]::IsNullOrWhiteSpace($PbixName)) {
         if ($openTargets.Count -eq 0) {
             $warnings.Add("Environment is ready, but no Power BI Desktop PBIX is open. Open a PBIX and run START_HERE.ps1 again.") | Out-Null
@@ -671,27 +1179,76 @@ try {
                     if ($_.CurrentFilePath) { "$($_.PbixName) [$($_.CurrentFilePath)]" } else { [string]$_.PbixName }
                 }
             )
-            throw "Multiple Power BI Desktop files are open: $($labels -join '; '). Re-run with -PbixName only when that filename is unique; otherwise close one copy."
+            Throw-ToolkitFailure `
+                -Message "Multiple Power BI Desktop files are open: $($labels -join '; '). Re-run with -PbixName only when that filename is unique; otherwise close one copy." `
+                -BlockerCode "PBIX_TARGET_INVALID" `
+                -FailureStage "pbix-discovery" `
+                -Retryable $false `
+                -RequiresIT $false `
+                -NextAction "Close unrelated Power BI Desktop files or provide one unique -PbixName, then rerun."
         }
         $desktopTarget = $openTargets[0]
         $resolvedPbixName = [string]$desktopTarget.PbixName
         Write-Log "Auto-detected PBIX: $resolvedPbixName (source: $($desktopTarget.DiscoverySource))"
     }
     else {
-        $resolvedPbixName = Normalize-PbixName -PbixName $PbixName
+        try {
+            $resolvedPbixName = Normalize-PbixName -PbixName $PbixName
+        }
+        catch {
+            Throw-ToolkitFailure `
+                -Message $_.Exception.Message `
+                -BlockerCode "PBIX_TARGET_INVALID" `
+                -FailureStage "pbix-discovery" `
+                -Retryable $false `
+                -RequiresIT $false `
+                -NextAction "Provide only the exact open PBIX filename, including .pbix, with no folder path."
+        }
         $sameNameTargets = @(
             $openTargets | Where-Object { $_.PbixName.Equals($resolvedPbixName, [System.StringComparison]::OrdinalIgnoreCase) }
         )
         if ($sameNameTargets.Count -gt 1) {
-            throw "More than one open Power BI Desktop process has filename '$resolvedPbixName'. Close one copy before continuing."
+            Throw-ToolkitFailure `
+                -Message "More than one open Power BI Desktop process has filename '$resolvedPbixName'. Close one copy before continuing." `
+                -BlockerCode "PBIX_TARGET_INVALID" `
+                -FailureStage "pbix-discovery" `
+                -Retryable $false `
+                -RequiresIT $false `
+                -NextAction "Close duplicate copies of '$resolvedPbixName', leave exactly one open, then rerun."
         }
         if ($sameNameTargets.Count -eq 1) { $desktopTarget = $sameNameTargets[0] }
         Write-Log "Using requested PBIX: $resolvedPbixName"
     }
 
+    $inventorySafeName = Get-SafeArtifactName -Value ([System.IO.Path]::GetFileNameWithoutExtension($resolvedPbixName))
+    $inventoryRunName = "inventory_{0}_{1}" -f $inventorySafeName, (Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss_fff")
+    $outputFolder = Join-Path $evidenceRoot $inventoryRunName
     Write-State -Status "running" -Stage "metadata-extraction"
     $inventoryScript = Join-Path $toolkitRoot "powershell\run_model_inventory.ps1"
-    $manifestPath = & $inventoryScript -PbixName $resolvedPbixName -EnvPath $envPath
+    try {
+        $manifestPath = & $inventoryScript -PbixName $resolvedPbixName -OutDir $outputFolder -EnvPath $envPath
+    }
+    catch {
+        $inventoryMessage = $_.Exception.Message
+        if ($inventoryMessage -match '(?i)(PBIX-name connection failed|local port/catalog fallback failed|could not uniquely resolve PBIX|no local Power BI Desktop model|wait for it to finish loading)') {
+            Throw-ToolkitFailure `
+                -Message $inventoryMessage `
+                -BlockerCode "PBIX_CONNECTION_FAILED" `
+                -FailureStage "metadata-extraction" `
+                -Retryable $true `
+                -RequiresIT $false `
+                -NextAction "Wait for '$resolvedPbixName' to finish loading in Power BI Desktop."
+        }
+        Throw-ToolkitFailure `
+            -Message $inventoryMessage `
+            -BlockerCode "INVENTORY_FAILED" `
+            -FailureStage "metadata-extraction" `
+            -Retryable $true `
+            -RequiresIT $false `
+            -NextAction "Keep the same PBIX open and retain latest.log plus the TE2 stdout/stderr logs."
+    }
+
+    try {
     if ([string]::IsNullOrWhiteSpace($manifestPath) -or -not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         throw "inventory_manifest.json was not produced."
     }
@@ -733,6 +1290,16 @@ try {
             throw "Manifest hash does not match artifact: $artifactName"
         }
     }
+    }
+    catch {
+        Throw-ToolkitFailure `
+            -Message $_.Exception.Message `
+            -BlockerCode "OUTPUT_VALIDATION_FAILED" `
+            -FailureStage "output-validation" `
+            -Retryable $true `
+            -RequiresIT $false `
+            -NextAction "Discard this run's output folder and retain latest.log plus inventory_manifest.json."
+    }
 
     $outputFolder = Split-Path -Parent $manifestPath
     Write-Log "Metadata extraction and manifest validation passed."
@@ -742,9 +1309,31 @@ try {
 }
 catch {
     $message = $_.Exception.Message
-    Write-Log "FAIL: $message"
-    Write-State -Status "failed" -Stage "failed" -LastError $message
-    Write-FinalResult -Result "FAIL" -ExitCode 1 -Status "failed" -Blocker $message
+    $metadata = Get-LauncherFailureMetadata -ErrorRecord $_
+    try { Write-Log "FAIL: $message" } catch { [Console]::Error.WriteLine("BLOCKER: $message") }
+    try {
+        Write-State `
+            -Status "failed" `
+            -Stage $metadata.failureStage `
+            -LastError $message `
+            -BlockerCode $metadata.blockerCode `
+            -Retryable ([bool]$metadata.retryable) `
+            -RequiresIT ([bool]$metadata.requiresIT) `
+            -NextAction $metadata.nextAction
+    }
+    catch { [Console]::Error.WriteLine("BLOCKER: Unable to write state.json: $($_.Exception.Message)") }
+    try {
+        Write-FinalResult `
+            -Result "FAIL" `
+            -ExitCode 1 `
+            -Status "failed" `
+            -Blocker $message `
+            -BlockerCode $metadata.blockerCode `
+            -Retryable ([bool]$metadata.retryable) `
+            -RequiresIT ([bool]$metadata.requiresIT) `
+            -NextAction $metadata.nextAction
+    }
+    catch { [Console]::Error.WriteLine("BLOCKER: Unable to write result.json: $($_.Exception.Message)") }
     exit 1
 }
 finally {
