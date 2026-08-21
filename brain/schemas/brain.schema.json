@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/digital-transformation-brain.schema.json",
+  "title": "Digital Transformation Brain Record",
+  "type": "object",
+  "required": ["recordType", "id"],
+  "properties": {
+    "recordType": {
+      "enum": [
+        "artifact",
+        "sessionFact",
+        "executionEvidence",
+        "businessKnowledgeCard",
+        "reportProfile",
+        "sourceMapping",
+        "genieProblemPacket",
+        "reconciliationProfile",
+        "observation",
+        "retrievalResult"
+      ]
+    },
+    "id": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {"if": {"properties": {"recordType": {"const": "artifact"}}}, "then": {"$ref": "#/$defs/artifact"}},
+    {"if": {"properties": {"recordType": {"const": "sessionFact"}}}, "then": {"$ref": "#/$defs/sessionFact"}},
+    {"if": {"properties": {"recordType": {"const": "executionEvidence"}}}, "then": {"$ref": "#/$defs/executionEvidence"}},
+    {"if": {"properties": {"recordType": {"const": "businessKnowledgeCard"}}}, "then": {"$ref": "#/$defs/businessKnowledgeCard"}},
+    {"if": {"properties": {"recordType": {"const": "reportProfile"}}}, "then": {"$ref": "#/$defs/reportProfile"}},
+    {"if": {"properties": {"recordType": {"const": "sourceMapping"}}}, "then": {"$ref": "#/$defs/sourceMapping"}},
+    {"if": {"properties": {"recordType": {"const": "genieProblemPacket"}}}, "then": {"$ref": "#/$defs/genieProblemPacket"}},
+    {"if": {"properties": {"recordType": {"const": "reconciliationProfile"}}}, "then": {"$ref": "#/$defs/reconciliationProfile"}},
+    {"if": {"properties": {"recordType": {"const": "observation"}}}, "then": {"$ref": "#/$defs/observation"}},
+    {"if": {"properties": {"recordType": {"const": "retrievalResult"}}}, "then": {"$ref": "#/$defs/retrievalResult"}}
+  ],
+  "$defs": {
+    "trustState": {
+      "enum": [
+        "RAW", "PARSED", "LIKELY_USEFUL", "NEEDS_CONTEXT", "BROKEN", "RUNNABLE",
+        "VERIFIED", "PROMOTION_CANDIDATE", "PROMOTED", "SUPERSEDED", "ARCHIVED",
+        "RESTRICTED_SECRET"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "required": ["scopeType", "sensitivity", "shareable"],
+      "properties": {
+        "scopeType": {"enum": ["generic", "enterprise", "team", "report-family", "project", "restricted"]},
+        "scopeValue": {"type": ["string", "null"]},
+        "sensitivity": {"enum": ["public", "internal", "confidential", "secret-excluded"]},
+        "shareable": {"type": "boolean"},
+        "containsResultData": {"type": "boolean", "default": false}
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["sourceType", "sourceId"],
+      "properties": {
+        "sourceType": {"enum": ["file", "session", "git", "runtime", "rest", "uc", "te2", "dax", "sql", "python", "human", "model"]},
+        "sourceId": {"type": "string"},
+        "sourcePath": {"type": ["string", "null"]},
+        "observedAt": {"type": ["string", "null"], "format": "date-time"},
+        "hash": {"type": ["string", "null"]},
+        "notes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "evidenceRef": {
+      "type": "object",
+      "required": ["evidenceId", "evidenceType", "summary"],
+      "properties": {
+        "evidenceId": {"type": "string"},
+        "evidenceType": {"enum": ["USER_CLAIM", "ASSISTANT_CLAIM", "COMMAND_EVIDENCE", "FILE_EVIDENCE", "VALIDATION_EVIDENCE", "LATER_SUCCESSFUL_USE", "GIT_PROVENANCE", "LIVE_OBSERVATION"]},
+        "strength": {"type": "integer", "minimum": 0, "maximum": 100},
+        "summary": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["recordType", "id", "sha256", "artifactType", "trustState", "scope", "provenance"],
+      "properties": {
+        "recordType": {"const": "artifact"},
+        "id": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "paths": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "artifactType": {"type": "string"},
+        "project": {"type": ["string", "null"]},
+        "domain": {"type": "array", "items": {"type": "string"}},
+        "sizeBytes": {"type": ["integer", "null"], "minimum": 0},
+        "modifiedAt": {"type": ["string", "null"], "format": "date-time"},
+        "syntaxStatus": {"enum": ["unknown", "passed", "failed", "not-applicable"]},
+        "trustState": {"$ref": "#/$defs/trustState"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "provenance": {"type": "array", "items": {"$ref": "#/$defs/provenance"}, "minItems": 1},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidenceRef"}},
+        "referencedObjects": {"type": "array", "items": {"type": "string"}},
+        "businessTerms": {"type": "array", "items": {"type": "string"}},
+        "inputs": {"type": "array", "items": {"type": "string"}},
+        "outputs": {"type": "array", "items": {"type": "string"}},
+        "versionFamilyId": {"type": ["string", "null"]},
+        "supersedes": {"type": "array", "items": {"type": "string"}},
+        "secretExcluded": {"type": "boolean", "default": false}
+      },
+      "additionalProperties": false
+    },
+    "sessionFact": {
+      "type": "object",
+      "required": ["recordType", "id", "sessionId", "factType", "summary", "provenance"],
+      "properties": {
+        "recordType": {"const": "sessionFact"},
+        "id": {"type": "string"},
+        "sessionId": {"type": "string"},
+        "factType": {"enum": ["USER_CLAIM", "ASSISTANT_CLAIM", "COMMAND_EVIDENCE", "FILE_EVIDENCE", "VALIDATION_EVIDENCE", "LATER_SUCCESSFUL_USE"]},
+        "summary": {"type": "string"},
+        "artifactIds": {"type": "array", "items": {"type": "string"}},
+        "objects": {"type": "array", "items": {"type": "string"}},
+        "filters": {"type": "object"},
+        "command": {"type": ["string", "null"]},
+        "exitCode": {"type": ["integer", "null"]},
+        "timestamp": {"type": ["string", "null"], "format": "date-time"},
+        "provenance": {"$ref": "#/$defs/provenance"}
+      },
+      "additionalProperties": false
+    },
+    "executionEvidence": {
+      "type": "object",
+      "required": ["recordType", "id", "status", "tool", "provenance"],
+      "properties": {
+        "recordType": {"const": "executionEvidence"},
+        "id": {"type": "string"},
+        "artifactId": {"type": ["string", "null"]},
+        "sessionId": {"type": ["string", "null"]},
+        "tool": {"type": "string"},
+        "status": {"enum": ["passed", "failed", "timed-out", "blocked", "unknown"]},
+        "exitCode": {"type": ["integer", "null"]},
+        "startedAt": {"type": ["string", "null"], "format": "date-time"},
+        "finishedAt": {"type": ["string", "null"], "format": "date-time"},
+        "durationMs": {"type": ["integer", "null"], "minimum": 0},
+        "outputArtifacts": {"type": "array", "items": {"type": "string"}},
+        "validation": {"type": "array", "items": {"type": "string"}},
+        "controlTotals": {"type": "object"},
+        "errorSummary": {"type": ["string", "null"]},
+        "provenance": {"$ref": "#/$defs/provenance"}
+      },
+      "additionalProperties": false
+    },
+    "businessKnowledgeCard": {
+      "type": "object",
+      "required": ["recordType", "id", "title", "claim", "scope", "validationState", "permittedUse", "provenance"],
+      "properties": {
+        "recordType": {"const": "businessKnowledgeCard"},
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "claim": {"type": "string"},
+        "systems": {"type": "array", "items": {"type": "string"}},
+        "businessProcess": {"type": ["string", "null"]},
+        "scope": {"$ref": "#/$defs/scope"},
+        "validationState": {"enum": ["hypothesis", "observed", "partially-validated", "validated", "conflicted", "retired"]},
+        "filters": {"type": "object"},
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "exceptions": {"type": "array", "items": {"type": "string"}},
+        "conflicts": {"type": "array", "items": {"type": "string"}},
+        "relatedObjects": {"type": "array", "items": {"type": "string"}},
+        "permittedUse": {"type": "array", "items": {"enum": ["execution", "analysis-context", "genie-enrichment", "retrieval-only"]}},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidenceRef"}},
+        "provenance": {"type": "array", "items": {"$ref": "#/$defs/provenance"}, "minItems": 1}
+      },
+      "additionalProperties": false
+    },
+    "reportProfile": {
+      "type": "object",
+      "required": ["recordType", "id", "reportFamily", "trustState", "scope", "provenance"],
+      "properties": {
+        "recordType": {"const": "reportProfile"},
+        "id": {"type": "string"},
+        "reportFamily": {"type": "string"},
+        "pbixNames": {"type": "array", "items": {"type": "string"}},
+        "semanticModelIds": {"type": "array", "items": {"type": "string"}},
+        "measures": {"type": "array", "items": {"type": "string"}},
+        "dimensions": {"type": "array", "items": {"type": "string"}},
+        "relationships": {"type": "array", "items": {"type": "string"}},
+        "sourceMappingIds": {"type": "array", "items": {"type": "string"}},
+        "knownQuestions": {"type": "array", "items": {"type": "string"}},
+        "unresolvedContext": {"type": "array", "items": {"type": "string"}},
+        "trustState": {"$ref": "#/$defs/trustState"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "provenance": {"type": "array", "items": {"$ref": "#/$defs/provenance"}}
+      },
+      "additionalProperties": false
+    },
+    "sourceMapping": {
+      "type": "object",
+      "required": ["recordType", "id", "semanticObject", "sourceType", "confidence", "validationState", "provenance"],
+      "properties": {
+        "recordType": {"const": "sourceMapping"},
+        "id": {"type": "string"},
+        "semanticObject": {"type": "string"},
+        "sourceType": {"enum": ["uc-table", "uc-view", "native-query", "file", "api", "unknown"]},
+        "catalog": {"type": ["string", "null"]},
+        "schema": {"type": ["string", "null"]},
+        "object": {"type": ["string", "null"]},
+        "warehousePath": {"type": ["string", "null"]},
+        "mSteps": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"enum": ["exact_m_navigation", "native_query_parsed", "parameter_resolved", "probable_from_name", "unresolved_dynamic_expression"]},
+        "validationState": {"enum": ["historical", "live-validated", "stale", "superseded", "unknown"]},
+        "provenance": {"type": "array", "items": {"$ref": "#/$defs/provenance"}}
+      },
+      "additionalProperties": false
+    },
+    "genieProblemPacket": {
+      "type": "object",
+      "required": ["recordType", "id", "objective", "knownSemantics", "candidateUcObjects", "openQuestions", "validationControls", "prompt"],
+      "properties": {
+        "recordType": {"const": "genieProblemPacket"},
+        "id": {"type": "string"},
+        "objective": {"type": "string"},
+        "businessProcess": {"type": ["string", "null"]},
+        "systems": {"type": "array", "items": {"type": "string"}},
+        "knownSemantics": {"type": "array", "items": {"type": "string"}},
+        "hypotheses": {"type": "array", "items": {"type": "string"}},
+        "powerBiObjects": {"type": "array", "items": {"type": "string"}},
+        "sapObjects": {"type": "array", "items": {"type": "string"}},
+        "candidateUcObjects": {"type": "array", "items": {"type": "string"}},
+        "filters": {"type": "object"},
+        "requiredGrain": {"type": ["string", "null"]},
+        "failedApproaches": {"type": "array", "items": {"type": "string"}},
+        "openQuestions": {"type": "array", "items": {"type": "string"}},
+        "validationControls": {"type": "array", "items": {"type": "string"}},
+        "prompt": {"type": "string"},
+        "provenance": {"type": "array", "items": {"$ref": "#/$defs/provenance"}}
+      },
+      "additionalProperties": false
+    },
+    "reconciliationProfile": {
+      "type": "object",
+      "required": ["recordType", "id", "name", "powerBi", "source", "dimensions", "tolerance"],
+      "properties": {
+        "recordType": {"const": "reconciliationProfile"},
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "powerBi": {"type": "object"},
+        "source": {"type": "object"},
+        "filters": {"type": "object"},
+        "dimensions": {"type": "array", "items": {"type": "string"}},
+        "tolerance": {
+          "type": "object",
+          "required": ["absolute", "percent"],
+          "properties": {"absolute": {"type": "number"}, "percent": {"type": "number"}},
+          "additionalProperties": false
+        },
+        "drillOrder": {"type": "array", "items": {"type": "string"}},
+        "validationState": {"enum": ["draft", "tested", "verified", "promoted"]}
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": ["recordType", "id", "source", "observedAt", "objectType", "objectId"],
+      "properties": {
+        "recordType": {"const": "observation"},
+        "id": {"type": "string"},
+        "source": {"enum": ["powerbi-rest", "te2", "m-expression", "unity-catalog", "genie", "runtime", "other"]},
+        "observedAt": {"type": "string", "format": "date-time"},
+        "objectType": {"type": "string"},
+        "objectId": {"type": "string"},
+        "snapshotId": {"type": ["string", "null"]},
+        "previousObservationId": {"type": ["string", "null"]},
+        "changeStatus": {"enum": ["new", "unchanged", "modified", "missing", "unknown"]},
+        "payload": {"type": "object"},
+        "provenance": {"type": "array", "items": {"$ref": "#/$defs/provenance"}}
+      },
+      "additionalProperties": false
+    },
+    "retrievalResult": {
+      "type": "object",
+      "required": ["recordType", "id", "query", "results"],
+      "properties": {
+        "recordType": {"const": "retrievalResult"},
+        "id": {"type": "string"},
+        "query": {"type": "string"},
+        "method": {"enum": ["exact", "metadata", "fts", "relationship", "vector", "hybrid"]},
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["recordId", "rank", "matchReasons", "executionAllowed"],
+            "properties": {
+              "recordId": {"type": "string"},
+              "rank": {"type": "integer", "minimum": 1},
+              "score": {"type": "number"},
+              "trustState": {"$ref": "#/$defs/trustState"},
+              "matchReasons": {"type": "array", "items": {"type": "string"}},
+              "executionAllowed": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "createdAt": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,76 @@
+version: 1
+profiles:
+  - id: recon.powerbi-databricks.net-sales
+    name: Power BI net sales to Databricks control
+    validationState: draft
+    powerBi:
+      measure: "[Net Sales USD]"
+      modelSelector: exact open PBIX/PBIP
+      execution: dscmd
+    source:
+      type: databricks-sql
+      object: "<validate live UC candidate>"
+      aggregation: "SUM(<net_sales_expression>)"
+    filters:
+      scenario: Actual
+      intercompany: Exclude
+      period: required
+      entity: optional
+    dimensions: [fiscal_period, legal_entity, plant, product_family, customer, document]
+    drillOrder: [grand_total, fiscal_period, legal_entity, plant, product_family, customer, document]
+    tolerance:
+      absolute: 1000.0
+      percent: 0.001
+    completion:
+      - DAX and SQL use equivalent filters and FX policy.
+      - Both outputs are persisted and hashed.
+      - Residual is drilled until explained or explicitly unresolved.
+
+  - id: recon.sap.intercompany-open-items
+    name: SAP intercompany open-item reconstruction and reciprocal matching
+    validationState: draft
+    powerBi:
+      measure: "<optional report control>"
+      execution: dscmd when available
+    source:
+      type: databricks-sql
+      object: "<ECC/S4 governed accounting source>"
+      keyDateLogic: "BUDAT < cutoff_exclusive AND (uncleared OR AUGDT >= cutoff_exclusive)"
+    filters:
+      cutoff_exclusive: required
+      source_state_as_of: required for reproducibility
+      history_policy: explicit
+    dimensions: [company_code, partner_entity, currency, fiscal_period, document_group]
+    drillOrder: [grand_total, company_pair, currency, period, document_group, accounting_item]
+    tolerance:
+      absolute: 10.0
+      percent: 0.0001
+    completion:
+      - Partner identification and financial reconciliation are scored separately.
+      - Prior-year open items are retained unless policy explicitly excludes them.
+      - Missing VBUND does not automatically classify an item as external.
+
+  - id: recon.sap-spool-to-databricks.sgm
+    name: Legacy SAP SGM spool to Databricks and Power BI
+    validationState: draft
+    powerBi:
+      measure: "<extract and validate current SGM measure>"
+      execution: dscmd
+    source:
+      type: databricks-sql
+      object: "<billing/pricing/cost candidate set>"
+      grain: billing item unless evidence requires another grain
+    filters:
+      reporting_period: required
+      currency_policy: required
+      uom_policy: required
+      document_scope: required
+    dimensions: [period, sales_org, company_code, plant, material, customer, billing_document, billing_item]
+    drillOrder: [grand_total, period, sales_org, company_code, plant, material, billing_document_item]
+    tolerance:
+      absolute: 1000.0
+      percent: 0.001
+    completion:
+      - Legacy spool, Power BI DAX, and Databricks SQL controls are compared.
+      - Pricing subtotal/custom-condition differences are explicit.
+      - Third-party cost timing and UoM conversion are validated.

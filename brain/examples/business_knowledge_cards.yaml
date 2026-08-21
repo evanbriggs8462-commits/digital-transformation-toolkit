@@ -1,0 +1,106 @@
+version: 1
+cards:
+  - id: sap.sgm.pricing-subtotal-context
+    title: Pricing subtotal versus custom condition in margin reconstruction
+    claim: >-
+      A custom pricing condition may represent only one pricing component, while a configured pricing subtotal can include
+      freight or other adders. Reconstructing SGM requires validating the pricing procedure, subtotal composition,
+      quantity/UoM, cost components, and FX policy rather than selecting one familiar field by name.
+    scope:
+      scopeType: generic
+      scopeValue: SAP SD pricing and commercial margin
+      sensitivity: public
+      shareable: true
+      containsResultData: false
+    systems: [SAP ECC, SAP S/4HANA, Power BI, Databricks]
+    businessProcess: sales gross margin
+    validationState: hypothesis
+    relatedObjects: [KONV, PRCD_ELEMENTS, KZWI1-KZWI6, custom Z pricing conditions, VBRK, VBRP]
+    assumptions:
+      - Pricing procedure is configurable.
+      - Power BI may embed adjustments not obvious from raw billing fields.
+    exceptions:
+      - Do not assign a universal meaning to KZWI4 or any subtotal.
+      - Validate ECC versus S/4 persistence.
+    permittedUse: [analysis-context, genie-enrichment, retrieval-only]
+    requiredValidation:
+      - Inspect pricing procedure and condition configuration.
+      - Reconcile candidate SQL to legacy spool and evaluated DAX control.
+
+  - id: sap.third-party-cost-timing
+    title: Third-party sales cost may require SD, MM, FI, and valuation evidence
+    claim: >-
+      Billing-side cost can be incomplete for third-party processes when procurement, goods receipt, invoice receipt,
+      valuation, or standard-cost events occur on a different timeline. Investigation should trace SD documents to
+      purchasing history and material valuation before classifying a margin variance as bad data.
+    scope:
+      scopeType: generic
+      scopeValue: third-party sales and material costing
+      sensitivity: public
+      shareable: true
+      containsResultData: false
+    systems: [SAP SD, SAP MM, SAP FI, Material Valuation, Databricks]
+    businessProcess: third-party order-to-cash and procure-to-pay
+    validationState: hypothesis
+    relatedObjects: [VBAK, VBAP, VBRK, VBRP, EKKO, EKPO, EKBE, RBKP, RSEG, MBEW]
+    assumptions:
+      - A direct billing-to-receipt link may be absent or delayed.
+      - Material type and price control affect treatment.
+    exceptions:
+      - Do not assume all third-party processes use identical account assignment or timing.
+    permittedUse: [analysis-context, genie-enrichment, retrieval-only]
+    requiredValidation:
+      - Trace document flow and purchasing history.
+      - Compare cost timing and valuation events to reporting cutoff.
+
+  - id: sap.intercompany.evidence-graph
+    title: Missing trading partner does not prove an external transaction
+    claim: >-
+      Intercompany classification should combine trading-partner fields, master-data relationships, SD/MM/FI document
+      flow, references, reciprocal entity evidence, amount, currency, and dates. Missing VBUND or transfer partner is a
+      data point, not a final classification.
+    scope:
+      scopeType: generic
+      scopeValue: ECC and S/4 intercompany reconciliation
+      sensitivity: public
+      shareable: true
+      containsResultData: false
+    systems: [SAP FI, SAP SD, SAP MM, Databricks, Power BI]
+    businessProcess: intercompany reconciliation
+    validationState: observed
+    relatedObjects: [BKPF, BSEG, VBUND, VBRK, VBRP, VBFA, EKKO, EKPO, EKBE, customer/vendor master]
+    assumptions:
+      - Split billing and multiple profit centers can create one-to-many relationships.
+      - Reciprocal documents may not share document numbers or posting dates.
+    exceptions:
+      - Partner derivation rules are implementation-specific.
+      - FX and clearing timing must be separated from partner identification.
+    permittedUse: [analysis-context, genie-enrichment, retrieval-only]
+    requiredValidation:
+      - Build an explainable partner-evidence hierarchy.
+      - Validate reciprocal groups and financial tolerance separately.
+
+  - id: finance.fx.bs-vs-is
+    title: Balance-sheet and income-statement FX policies require explicit separation
+    claim: >-
+      A reconciliation must state rate type, rate date, currency hierarchy, account classification, and translation
+      method. Applying a single FX rule to both balance-sheet and income-statement measures can create artificial
+      differences.
+    scope:
+      scopeType: generic
+      scopeValue: financial reporting FX
+      sensitivity: public
+      shareable: true
+      containsResultData: false
+    systems: [SAP FI, Power BI, Databricks]
+    businessProcess: currency translation
+    validationState: observed
+    relatedObjects: [transaction currency, local currency, group currency, rate type, posting date, period average, closing rate]
+    assumptions:
+      - Reporting policy may differ by account class and scenario.
+    exceptions:
+      - Company policy and consolidation system remain authoritative.
+    permittedUse: [analysis-context, genie-enrichment, retrieval-only]
+    requiredValidation:
+      - Identify account classification and approved rate policy.
+      - Compare DAX and SQL under the same rate/date assumptions.
