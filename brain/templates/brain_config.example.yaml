@@ -1,0 +1,90 @@
+version: 1
+workspace:
+  root: "C:/path/to/private-brain-workspace"
+  outputSubdirectory: ".brain-poc"
+  sourceRoots:
+    - path: "C:/path/to/scoped/opencode-project"
+      readOnly: true
+      includeSessions: true
+
+security:
+  excludeNames:
+    - ".env"
+    - ".databrickscfg"
+    - "auth.json"
+  excludeGlobs:
+    - "**/.git/objects/**"
+    - "**/.venv/**"
+    - "**/venv/**"
+    - "**/node_modules/**"
+    - "**/__pycache__/**"
+  secretPatterns:
+    - "dapi"
+    - "Authorization: Bearer"
+    - "BEGIN PRIVATE KEY"
+  storeSecretValues: false
+
+inventory:
+  extensions:
+    - ".ps1"
+    - ".psm1"
+    - ".py"
+    - ".sql"
+    - ".dax"
+    - ".csx"
+    - ".cs"
+    - ".ipynb"
+    - ".md"
+    - ".txt"
+    - ".json"
+    - ".jsonl"
+    - ".yaml"
+    - ".yml"
+    - ".toml"
+    - ".csv"
+    - ".patch"
+  hashAlgorithm: sha256
+  largeFileThresholdBytes: 25000000
+  sampleRows: 200
+  randomSampleWindows: 3
+  incremental: true
+
+models:
+  defaultScout: "<fast-internal-coding-alias>"
+  curator: "<moderate-reasoning-alias>"
+  reviewer: "<high-reasoning-alias>"
+  operator: "<execution-capable-alias>"
+  embedding: "<approved-internal-embedding-alias-or-null>"
+  maxConcurrentWorkers: 2
+  recursiveSubagents: false
+
+budgets:
+  sampleArtifacts: 30
+  maxInputTokens: 150000
+  maxOutputTokens: 20000
+  maxHighReasoningShare: 0.10
+  stopAfterSampleBenchmark: true
+
+retrieval:
+  methods:
+    - exact
+    - metadata
+    - fts
+    - relationship
+  enableVectorAfterBenchmark: false
+  enableGraphDatabase: false
+  searchTrustOrder:
+    - PROMOTED
+    - VERIFIED
+    - RUNNABLE
+    - NEEDS_CONTEXT
+    - PARSED
+    - RAW
+
+liveSystems:
+  powerBiRuntimeEnabled: false
+  powerBiRestEnabled: false
+  unityCatalogProbeEnabled: false
+  databricksSqlExecutionEnabled: false
+  genieEnabled: false
+  note: "Keep disabled during deterministic harvest; enable individually for later validation sprints."

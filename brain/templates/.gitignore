@@ -1,0 +1,33 @@
+# Never commit a populated brain workspace or machine-specific credentials.
+.env
+.databrickscfg
+auth.json
+*.token
+*.key
+*.pfx
+*.pem
+
+# Local brain runtime and indexes
+.brain-poc/
+brain-workspace/
+**/runtime/
+**/raw-sessions/
+**/observations/
+**/registry/*.sqlite
+**/registry/*.sqlite-*
+**/logs/
+**/results/
+**/exports/private/
+
+# Python/runtime noise
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Local report/data artifacts
+*.pbix
+*.pbit
+*.csv
+*.parquet
+*.xlsx
