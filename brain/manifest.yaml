@@ -1,0 +1,55 @@
+version: 0.1.0
+lastReviewed: 2026-08-20
+scope: generic-public-framework
+runtimeIntegration: optional-sidecar
+entrypoints:
+  agentContract: AGENTS.md
+  overview: README.md
+  architecture: architecture.md
+knowledge:
+  - id: brain.reference.sap
+    path: reference/SAP_REFERENCE.md
+    purpose: SAP document hierarchies, keys, types, ECC/S4 distinctions, and scoped reasoning patterns
+  - id: brain.reference.powerbi-databricks
+    path: reference/POWERBI_DATABRICKS_REFERENCE.md
+    purpose: TE2/DAX routing, M lineage, REST observations, UC probing, and Genie enrichment
+  - id: brain.reference.opencode-harvest
+    path: reference/OPENCODE_ARTIFACT_HARVEST.md
+    purpose: scoped file/session harvesting, evidence extraction, trust assignment, and cost controls
+  - id: brain.reference.sources
+    path: reference/OFFICIAL_SOURCES.md
+    purpose: primary documentation used to validate technical contracts
+contracts:
+  schema: schemas/brain.schema.json
+  registrySql: sql/brain_registry.sql
+examples:
+  knowledgeCards: examples/business_knowledge_cards.yaml
+  reconciliationProfiles: examples/reconciliation_profiles.yaml
+prompts:
+  chatgptPoc: prompts/CHATGPT_POC_GOAL.md
+  workModelPoc: prompts/WORK_MODEL_GOAL.md
+  questionRouting: prompts/QUESTION_ROUTING.md
+  genieCompiler: prompts/GENIE_CONTEXT_COMPILER.md
+roadmap: roadmap/IMPLEMENTATION_SPRINTS.md
+security: security/SECURITY_AND_SCOPE.md
+trustStates:
+  - RAW
+  - PARSED
+  - LIKELY_USEFUL
+  - NEEDS_CONTEXT
+  - BROKEN
+  - RUNNABLE
+  - VERIFIED
+  - PROMOTION_CANDIDATE
+  - PROMOTED
+  - SUPERSEDED
+  - ARCHIVED
+  - RESTRICTED_SECRET
+retrievalPriority:
+  - exact-identifiers
+  - structured-metadata
+  - promoted-and-verified
+  - full-text-search
+  - relationship-traversal
+  - curated-vector-search
+  - raw-corpus-investigation
