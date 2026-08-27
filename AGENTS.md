@@ -1,81 +1,89 @@
-# Agent Contract
+# PBIX Intake Lab agent contract
 
-This folder is a self-contained Power BI runtime delivered from a shared folder. Do not assume Git is installed or that the user understands PowerShell, ports, Tabular Editor, or DAX Studio.
+This repository performs one job: capture the complete semantic-model metadata from one exact Power BI Desktop PBIX and produce a deterministic handoff for Genie. It is read-only and local-only.
 
-## Always start here
+## Preconditions
 
-Choose the launcher mode from the user's task, then run it and wait for exit:
+- Power BI Desktop is open and its Data pane has finished loading.
+- Tabular Editor 2 and DAX Studio were provisioned once outside normal runs.
+- `config/tools.json` exists. If it does not and the user has explicitly authorized the one-time POC provisioning, the agent must run `Install-PbixIntakeTools.Once.ps1` itself from the user's normal non-elevated shell. Do not hand the routine installation step back to the user.
+- If the user has not authorized software installation, or company policy requires prior approval, stop and request that authorization instead of installing.
+- Never download, install, repair, update, or replace a tool during an intake run.
+
+## Agent-owned POC provisioning
+
+After the user explicitly authorizes the one-time POC installation, run this exact wrapper from the lab root:
 
 ```powershell
-# Metadata, model structure, or logic only
-powershell.exe -NoProfile -File .\START_HERE.ps1 -SkipDaxStudio
-
-# Calculations, totals, validation queries, or result sets
-powershell.exe -NoProfile -File .\START_HERE.ps1 -RequireDaxStudio
-
-# Unclear or mixed task: best-effort DAX setup without making it mandatory
-powershell.exe -NoProfile -File .\START_HERE.ps1
+& "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File .\Install-PbixIntakeTools.Once.ps1
 ```
 
-If the exact open PBIX filename is already known, `-PbixName "<FILE>.pbix"` is allowed. Supply a filename only, not a path. Never substitute a similar name or fall back to another open model. Do not recreate winget installs, `.env` edits, Power BI instance discovery, port probing, or TE2 invocation yourself.
+The wrapper already supplies WinGet's `--silent`, `--disable-interactivity`, `--accept-source-agreements`, and `--accept-package-agreements` switches. Those switches silently accept the WinGet source and package-license agreements that the user authorized for the POC and prevent ordinary WinGet questions. Do not reconstruct the underlying WinGet commands, remove a verification step, launch either vendor installer manually, or ask the user to click through those agreement prompts.
 
-Console `Result: PASS` is not sufficient. For metadata extraction, accept success only when `state.json` and `result.json` have the same `runId`; state is `succeeded` at stage `complete`; result is `PASS` with status `complete` and exit code `0`; and `inventory_manifest.json` reports `status: succeeded`, a nonempty `toolkitCommit`, and exactly six existing validated artifacts. `ready-no-model` proves setup readiness only. A new run clears the prior result, so an interrupted run is safe to retry but must never inherit an old PASS.
+Silent agreement acceptance is not silent security approval. The wrapper cannot approve a Windows UAC secure-desktop prompt, create a company-policy exception, or bypass application control. If any of those interrupts or blocks provisioning, stop, preserve `config/provisioning-logs/`, and report the exact failure for the user or IT. Never elevate, retry with machine scope, or weaken the pinned/hash/publisher checks.
 
-## Task router
+Provisioning is complete only when the wrapper exits successfully, `config/tools.json` exists, and its final output confirms that both pinned tools passed validation. After that, proceed with intake and do not invoke the installer again as a recovery step.
 
-Choose tools by the question, not by habit:
+## Run
 
-- **TE2 / model inventory** — use for model structure and logic: tables, columns, measures and their expressions, relationships, partitions, Power Query/M, shared expressions, hidden objects, and model metadata.
-- **DAX Studio / `dscmd`** — use when the user wants a calculated answer from the model: totals, reconciliations, filtered results, measure evaluation, comparisons, validation queries, or a result set. Run `START_HERE.ps1` first so DAX Studio and the correct Desktop model connection are known.
-- **Report context** — page filters, visual filters, slicer state, interactions, bookmarks, and what a specific visual is showing are report-layer context. Do not infer these from semantic-model metadata. If PBIR/PBIP report definitions are available, inspect them. If Desktop Bridge is available, its exact file/PID state may be used as discovery evidence; screenshots are optional preview evidence, not a source of hidden filter semantics. Otherwise use only filters/context explicitly supplied by the user.
+When exactly one PBIX is open:
 
-DAX Studio can calculate under any filter context that can be expressed in DAX, but the agent must not silently invent missing page/visual filters. Translate explicit user/report context into the DAX query, then validate the result.
+```powershell
+& "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File .\Invoke-PbixIntake.ps1
+```
 
-Routing is mandatory: use `-SkipDaxStudio` for metadata/model-structure work, and use `-RequireDaxStudio` for calculations or queries. For DAX work, continue only when the completed `result.json` reports `capabilities.daxQueries: true`. When the task is unclear or mixed, use the default launcher with neither switch as best effort, then inspect that capability before attempting DAX.
+When more than one PBIX is open, supply the exact filename only:
 
-## Canonical wrappers
+```powershell
+& "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File .\Invoke-PbixIntake.ps1 -PbixName "Exact Report.pbix"
+```
 
-Use these only after the launcher has prepared the environment:
+Do not supply a path. Do not use fuzzy matching. If identity cannot be proven from the Desktop process and its Analysis Services child, stop.
 
-- `powershell\run_model_inventory.ps1`
-- `powershell\run_dax_query_any_model.ps1`
-- `powershell\test_toolkit_setup.ps1`
+Follow `docs/DISCOVERY_PLAYBOOK.md` before asking the user for a filename or path. Exhaust Desktop Bridge, process-command-line, and window-title evidence, in that order; a missing preview bridge is not a blocker by itself.
 
-For a non-test DAX query, write the generated query under the configured evidence/output area, not inside the toolkit. Preserve the query and its manifest as evidence.
+## Command truth
 
-## Discovery and ambiguity
+- TE2 `-L` means connect to a local open Power BI Desktop model.
+- TE2 `-S` means execute a C# script. It does not select a PBIX.
+- TE2 `-B` writes a BIM metadata copy.
+- TE2 `-TMDL` writes a TMDL metadata folder.
+- TE2 `-D` deploys/saves and is forbidden.
+- `dscmd --server` (`-s`) selects the server.
+- `dscmd --file` (`-f`) reads a DAX query file.
+- `dscmd --query` (`-q`) is inline DAX, not a query-file path.
+- `dscmd.exe`, not `DaxStudio.exe`, is the automation executable.
+- `dscmd` 3.6.0 is case-insensitive, but the supported 3.5.2 compatibility floor is not. Always use lowercase `csv`, `vpax`, and canonical lowercase long options.
 
-The runtime uses layered discovery and must prefer stronger evidence when available: Desktop Bridge exact file/PID, native filename connection, Power BI process/Analysis Services mapping, `msmdsrv.port.txt`, then listener-by-process fallback. If evidence remains ambiguous, do not guess a port, model ID, PBIX, or filter context.
+The canonical runtime resolves `localhost:<verified-port>` plus the exact catalog first. It does not let an agent improvise native arguments.
 
-If multiple PBIX files are open, use one of the exact names returned by the launcher. If the user named a report, select only an unambiguous matching target.
+## Acceptance
+
+Trust a run only when all of these are true:
+
+- `run.json` has `status: succeeded`, `result: PASS`, and `blockerCode: null`.
+- `coverage.json` says `semanticModel: captured` and `reportLayer: not-collected`.
+- `manifest.json` validates every published artifact by SHA-256.
+- `semantic_model/model.bim` parses as JSON.
+- the TMDL folder is nonempty and contains `.tmdl` files.
+- `validation/dax_connection.csv` contains one `PbixIntakeConnection=OK` row.
+- `GENIE_HANDOFF.md` exists and does not claim the report canvas was captured.
+
+Exit code zero from TE2 or DAX Studio is not sufficient by itself.
 
 ## Boundaries
 
-- Metadata extraction is read-only.
-- Do not publish, deploy, refresh, process, or save a semantic model unless the user explicitly requests a separate write workflow.
-- Do not request or print credentials, API keys, tokens, or secrets.
-- Do not disable UAC, endpoint security, certificate validation, package-integrity checks, or organizational policy.
-- Zero-touch setup must not require UAC credentials. TE2 uses only a verified user-scope portable WinGet path or a hash-pinned official portable ZIP. DAX Studio uses its official portable ZIP under LOCALAPPDATA. `-NoProfile`, silent mode, and agreement acceptance are noninteractive options, not privilege escalation.
-- This unsigned RC may be blocked when a browser/SharePoint ZIP carries Mark-of-the-Web. Do not unblock files or lower execution policy; report that as a release blocker.
-- No supported path displays UAC. If a UAC prompt appears, cancel it and mark the test failed.
+- Never invoke the run-once installer as an automatic recovery action. Provisioning requires an explicit one-time user/IT decision.
+- Never use TE2 `-D` or any deploy, refresh, process, save, publish, or write command.
+- Never execute arbitrary TE2 C# scripts.
+- Never export model rows or query business data in the baseline workflow.
+- VPAX must use `--donotreadstatsfromdata` and must retain TOM metadata.
+- The report layer is deliberately out of scope. Pages, visuals, filters, slicers, bookmarks, and interactions must be supplied separately by the user.
+- Raw BIM/TMDL can contain sensitive connection metadata. Keep raw artifacts internal. Give Genie the redacted normalized files and handoff unless raw access is explicitly approved.
+- Never claim that semantic metadata alone recreates a complete PBIX.
 
-## Failure handling
+## Failure behavior
 
-Read these before troubleshooting or improvising:
+Every attempt creates a unique run folder and a `run.json`, including failures. Return the exact `blockerCode`, message, and `nextAction`. Never reuse an older run's PASS.
 
-- `%LOCALAPPDATA%\DigitalTransformationToolkit\runtime\result.json`
-- `%LOCALAPPDATA%\DigitalTransformationToolkit\runtime\state.json`
-- `%LOCALAPPDATA%\DigitalTransformationToolkit\runtime\latest.log`
-
-Return the exact blocker. Do not claim success from a launched process, an old artifact, or an unverified CSV.
-
-Treat the four top-level schema-v2 recovery fields in both `state.json` and `result.json` as commands, not suggestions. During running/success states their defaults are `blockerCode: null`, `retryable: false`, `requiresIT: false`, and `nextAction: null`; the existing `lastError` and `blocker` fields remain available for human-readable detail.
-
-- `blockerCode` is the stable machine-readable failure identifier; preserve it verbatim in the report.
-- `retryable` says whether an automatic rerun is permitted.
-- `requiresIT` says the failure needs organizational or administrator action.
-- `nextAction` is the exact safe action to take before any permitted rerun.
-
-When `retryable` is `true` and `requiresIT` is `false`, perform `nextAction` once and rerun the same launcher command once. Never loop. If the rerun fails, stop and report its current fields. When `requiresIT` is `true`, or `retryable` is `false`, stop immediately and report the blocker. Never unblock files, change execution policy, weaken security, supply credentials, or improvise around policy.
-
-Two safety exceptions deliberately do not create a normal matching pair. Exit code `2` means another launcher owns the shared runtime files; do not read them as the rejected invocation's result or overwrite them. `RESULT_INVALIDATION_FAILED` can leave a locked older `result.json`; its mismatched `runId` makes it non-authoritative, so preserve it with the new failed `state.json` as evidence and stop.
+Read `docs/FAILURE_KB.md` before troubleshooting. Source-maintainer instruction: if `tests/Invoke-AdversarialTests.ps1` is present, run it after changing argument construction, discovery, process handling, redaction, or output generation. Minimal runtime bundles intentionally omit source tests; do not download or recreate them during an intake.

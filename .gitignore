@@ -1,0 +1,7 @@
+config/tools.json
+config/provisioning-logs/
+runs/
+tests/downloads/
+tests/results/
+*.tmp
+*.log
