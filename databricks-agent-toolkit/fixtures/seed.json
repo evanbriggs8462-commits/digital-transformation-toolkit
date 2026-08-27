@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "clock_ms": 1787835600000,
+  "counters": {
+    "job_run": 9000,
+    "query": 100,
+    "statement": 1000
+  },
+  "current_user": {
+    "active": true,
+    "displayName": "Simulation Agent",
+    "emails": [
+      {
+        "primary": true,
+        "type": "work",
+        "value": "agent@simulated.invalid"
+      }
+    ],
+    "id": "sim-user-001",
+    "schemas": [
+      "urn:ietf:params:scim:schemas:core:2.0:User"
+    ],
+    "userName": "agent@simulated.invalid"
+  },
+  "auth_profiles": [
+    {
+      "name": "SIMULATED",
+      "host": "https://workspace.simulated.invalid",
+      "valid": true,
+      "details": "Synthetic profile; no config file or credentials were read."
+    }
+  ],
+  "warehouses": {
+    "wh-sim-001": {
+      "id": "wh-sim-001",
+      "name": "Agent Sandbox Warehouse",
+      "cluster_size": "2X-Small",
+      "auto_stop_mins": 10,
+      "creator_name": "agent@simulated.invalid",
+      "enable_serverless_compute": true,
+      "state": "RUNNING",
+      "warehouse_type": "PRO"
+    },
+    "wh-sim-002": {
+      "id": "wh-sim-002",
+      "name": "Stopped Training Warehouse",
+      "cluster_size": "X-Small",
+      "auto_stop_mins": 15,
+      "creator_name": "agent@simulated.invalid",
+      "enable_serverless_compute": false,
+      "state": "STOPPED",
+      "warehouse_type": "CLASSIC"
+    }
+  },
+  "clusters": {
+    "cluster-sim-001": {
+      "cluster_id": "cluster-sim-001",
+      "cluster_name": "agent-poc-cluster",
+      "creator_user_name": "agent@simulated.invalid",
+      "data_security_mode": "USER_ISOLATION",
+      "node_type_id": "Standard_DS3_v2",
+      "num_workers": 1,
+      "spark_version": "16.4.x-scala2.12",
+      "state": "RUNNING",
+      "state_message": "Simulated cluster is running."
+    },
+    "cluster-sim-002": {
+      "cluster_id": "cluster-sim-002",
+      "cluster_name": "terminated-training-cluster",
+      "creator_user_name": "agent@simulated.invalid",
+      "data_security_mode": "SINGLE_USER",
+      "node_type_id": "Standard_DS3_v2",
+      "num_workers": 0,
+      "spark_version": "15.4.x-scala2.12",
+      "state": "TERMINATED",
+      "state_message": "Simulated cluster is terminated."
+    }
+  },
+  "jobs": {
+    "101": {
+      "created_time": 1787832000000,
+      "creator_user_name": "agent@simulated.invalid",
+      "job_id": 101,
+      "settings": {
+        "name": "Daily synthetic quality check",
+        "max_concurrent_runs": 1,
+        "tasks": [
+          {
+            "task_key": "quality_check",
+            "notebook_task": {
+              "notebook_path": "/Shared/agent-lab/quality_check"
+            }
+          }
+        ]
+      }
+    },
+    "102": {
+      "created_time": 1787828400000,
+      "creator_user_name": "agent@simulated.invalid",
+      "job_id": 102,
+      "settings": {
+        "name": "Synthetic sales summary",
+        "max_concurrent_runs": 1,
+        "tasks": [
+          {
+            "task_key": "summarize",
+            "spark_python_task": {
+              "python_file": "/Volumes/main/analytics/agent_files/jobs/summarize.py"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "runs": {},
+  "queries": {
+    "query-sim-001": {
+      "id": "query-sim-001",
+      "display_name": "Synthetic regional totals",
+      "warehouse_id": "wh-sim-001",
+      "catalog": "main",
+      "schema": "analytics",
+      "query_text": "SELECT region, total FROM main.analytics.daily_sales ORDER BY region",
+      "owner_user_name": "agent@simulated.invalid",
+      "created_at": 1787832000000,
+      "updated_at": 1787832000000
+    }
+  },
+  "query_history": [],
+  "catalogs": {
+    "main": {
+      "name": "main",
+      "catalog_type": "MANAGED_CATALOG",
+      "comment": "Synthetic primary catalog for offline practice.",
+      "owner": "simulated-data-team",
+      "metastore_id": "metastore-sim-001",
+      "created_at": 1787800000000,
+      "created_by": "agent@simulated.invalid"
+    },
+    "samples": {
+      "name": "samples",
+      "catalog_type": "MANAGED_CATALOG",
+      "comment": "Synthetic sample catalog.",
+      "owner": "simulated-system",
+      "metastore_id": "metastore-sim-001",
+      "created_at": 1787800000000,
+      "created_by": "simulated-system"
+    }
+  },
+  "schemas": {
+    "main.analytics": {
+      "name": "analytics",
+      "full_name": "main.analytics",
+      "catalog_name": "main",
+      "comment": "Synthetic analytics schema.",
+      "owner": "simulated-data-team"
+    },
+    "samples.nyctaxi": {
+      "name": "nyctaxi",
+      "full_name": "samples.nyctaxi",
+      "catalog_name": "samples",
+      "comment": "Small synthetic taxi-shaped data set; not real trip data.",
+      "owner": "simulated-system"
+    }
+  },
+  "tables": {
+    "main.analytics.daily_sales": {
+      "name": "daily_sales",
+      "full_name": "main.analytics.daily_sales",
+      "catalog_name": "main",
+      "schema_name": "analytics",
+      "table_type": "MANAGED",
+      "data_source_format": "DELTA",
+      "comment": "Synthetic totals for simulator exercises.",
+      "owner": "simulated-data-team",
+      "columns": [
+        {"name": "region", "position": 0, "type_name": "STRING", "type_text": "string", "nullable": false},
+        {"name": "total", "position": 1, "type_name": "DECIMAL", "type_text": "decimal(12,2)", "nullable": false},
+        {"name": "sale_date", "position": 2, "type_name": "DATE", "type_text": "date", "nullable": false}
+      ]
+    },
+    "samples.nyctaxi.trips": {
+      "name": "trips",
+      "full_name": "samples.nyctaxi.trips",
+      "catalog_name": "samples",
+      "schema_name": "nyctaxi",
+      "table_type": "MANAGED",
+      "data_source_format": "DELTA",
+      "comment": "Six fully synthetic rows for chunking and truncation practice.",
+      "owner": "simulated-system",
+      "columns": [
+        {"name": "trip_id", "position": 0, "type_name": "BIGINT", "type_text": "bigint", "nullable": false},
+        {"name": "pickup_zone", "position": 1, "type_name": "STRING", "type_text": "string", "nullable": false},
+        {"name": "fare", "position": 2, "type_name": "DOUBLE", "type_text": "double", "nullable": false}
+      ]
+    }
+  },
+  "table_rows": {
+    "main.analytics.daily_sales": [
+      ["Central", "830.25", "2026-08-25"],
+      ["East", "1250.50", "2026-08-25"],
+      ["North", "980.00", "2026-08-25"],
+      ["West", "1412.75", "2026-08-25"]
+    ],
+    "samples.nyctaxi.trips": [
+      [1, "Alpha", 12.5],
+      [2, "Bravo", 8.25],
+      [3, "Charlie", 19.0],
+      [4, "Delta", 14.75],
+      [5, "Echo", 6.5],
+      [6, "Foxtrot", 22.0]
+    ]
+  },
+  "volumes": {
+    "main.analytics.agent_files": {
+      "name": "agent_files",
+      "full_name": "main.analytics.agent_files",
+      "catalog_name": "main",
+      "schema_name": "analytics",
+      "volume_type": "MANAGED",
+      "comment": "Synthetic volume; paths and files are simulator fixtures only.",
+      "owner": "simulated-data-team",
+      "volume_id": "volume-sim-001"
+    }
+  },
+  "workspace_objects": [
+    {"path": "/Shared", "object_type": "DIRECTORY", "object_id": 1001},
+    {"path": "/Shared/agent-lab", "object_type": "DIRECTORY", "object_id": 1002},
+    {"path": "/Shared/agent-lab/quality_check", "object_type": "NOTEBOOK", "object_id": 1003, "language": "PYTHON"},
+    {"path": "/Shared/agent-lab/sql_examples", "object_type": "NOTEBOOK", "object_id": 1004, "language": "SQL"}
+  ],
+  "fs_entries": [
+    {"path": "dbfs:/FileStore", "name": "FileStore", "is_dir": true, "file_size": 0, "modification_time": 1787830000000},
+    {"path": "dbfs:/FileStore/agent-demo.csv", "name": "agent-demo.csv", "is_dir": false, "file_size": 128, "modification_time": 1787831000000},
+    {"path": "dbfs:/FileStore/readme.txt", "name": "readme.txt", "is_dir": false, "file_size": 96, "modification_time": 1787831100000},
+    {"path": "dbfs:/tmp", "name": "tmp", "is_dir": true, "file_size": 0, "modification_time": 1787830000000},
+    {"path": "dbfs:/tmp/simulated-output.json", "name": "simulated-output.json", "is_dir": false, "file_size": 256, "modification_time": 1787831200000},
+    {"path": "dbfs:/Volumes/main/analytics/agent_files", "name": "agent_files", "is_dir": true, "file_size": 0, "modification_time": 1787830000000},
+    {"path": "dbfs:/Volumes/main/analytics/agent_files/examples", "name": "examples", "is_dir": true, "file_size": 0, "modification_time": 1787830500000},
+    {"path": "dbfs:/Volumes/main/analytics/agent_files/examples/sample.json", "name": "sample.json", "is_dir": false, "file_size": 144, "modification_time": 1787830600000}
+  ],
+  "statements": {}
+}

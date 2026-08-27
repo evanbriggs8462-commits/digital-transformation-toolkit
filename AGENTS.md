@@ -1,6 +1,8 @@
 # PBIX Intake Lab agent contract
 
-This repository performs one job: capture the complete semantic-model metadata from one exact Power BI Desktop PBIX and produce a deterministic handoff for Genie. It is read-only and local-only.
+This contract governs the PBIX Intake Lab files at the repository root. The separate `databricks-agent-toolkit/` companion has its own nested `AGENTS.md`; agents working there must follow that narrower contract instead.
+
+The PBIX Intake Lab performs one job: capture the complete semantic-model metadata from one exact Power BI Desktop PBIX and produce a deterministic handoff for Genie. It is read-only and local-only.
 
 ## Preconditions
 
