@@ -1,74 +1,61 @@
 # Databricks Agent Toolkit
 
-Databricks Agent Toolkit gives coding agents two deliberately separate lanes:
+This is a live-only instruction set for coding agents that operate Databricks through the official CLI. The CLI's `databricks api` command is the required path for uncovered REST endpoints. Explicitly approved PySpark work may use a real Databricks Connect session. The toolkit contains no emulator, mock workspace, synthetic execution path, bundled CLI, installer, credentials, or fake-success fallback.
 
-1. an offline, credential-free CLI simulator for practicing command selection, JSON bodies, SQL Statement Execution polling, chunks, cancellation, and failure handling;
-2. a current official-source playbook for operating the real Databricks CLI, SQL APIs, saved queries, jobs, Unity Catalog, bundles, files, Genie, and Databricks Connect/PySpark.
+An agent may claim that a CLI or API action ran only when the real `databricks` command returned evidence from the intended workspace. An approved PySpark action requires fresh evidence from the intended remote Databricks Connect session. If the required live surface, approved profile, authentication, network, permissions, compute, or target is unavailable, the agent must report the exact blocker. It must never replace execution with invented output.
 
-It does not emulate Spark, Photon, cloud IAM, Unity Catalog enforcement, or performance. The simulator validates agent orchestration, not Databricks correctness.
+## Ownership and prerequisites
 
-## Quick start
+The user or IT installs and approves the Databricks CLI and grants access. This toolkit does not install software or create credentials. An agent must not install the CLI, sign in, create a profile, or expose a token unless the user has explicitly authorized that action.
 
-```powershell
-Set-Location .\databricks-agent-toolkit
-& .\databricks-sim.ps1 version
-& .\databricks-sim.ps1 quickstart
-& .\databricks-sim.ps1 sim reset
-& .\databricks-sim.ps1 catalogs list -o json
-& .\databricks-sim.ps1 api post /api/2.0/sql/statements --json '@examples/statement-parameterized.json' -o json
-```
-
-The wrapper locates an available Python 3.9+ interpreter. It never resolves or calls a real `databricks` binary.
-On Windows PowerShell, use the quoted `--json '@file.json'` form shown above for request bodies; complex inline JSON can lose its embedded quotes at the native-process boundary.
-
-## What is modeled
-
-- CLI-style JSON/text output and global `-o/--output`, `-p/--profile`, and `-t/--target` flags
-- current user and safe simulated profiles
-- warehouses, clusters, jobs/runs, saved queries, and query history
-- Unity Catalog catalogs, schemas, tables, and volumes
-- workspace and volume file listings
-- exact `databricks api` paths for SQL Statement Execution
-- named parameters, async status transitions, result chunks, truncation, cancellation, execution failures, and external-link handling
-- deterministic local state and reset
-
-## Live Databricks
-
-The real CLI is intentionally not bundled. As of 2026-08-27, the current official release is `1.14.0`, and CLI `1.0.0+` is GA. Install and authenticate it only through your approved process. Databricks recommends OAuth over PATs and now provides official coding-agent skills through `databricks aitools`.
-
-For attended access:
+Before live work, identify an approved profile and run:
 
 ```powershell
-databricks auth login --host <workspace-url>
+databricks version
 databricks auth profiles
-databricks current-user me -p <profile> -o json
+databricks auth describe --profile <profile>
+databricks current-user me --profile <profile> --output json
 ```
 
-For coding-agent guidance after your organization approves the CLI and skill installation:
+The agent must record the installed CLI version, selected profile name, resolved workspace host, authenticated principal, and any target IDs needed for the requested action. Resolve only relevant targets with exact or intentionally bounded reads. Secrets and token values must never be printed or logged.
+
+## Real execution contract
+
+- Use `databricks` for every requested CLI or API operation; there is no local substitute. Use Databricks Connect only for explicitly approved PySpark execution against a proven remote workspace and compute target.
+- Use an explicit `--profile` on live commands. Do not silently rely on `DEFAULT`, environment precedence, or a bundle-selected target.
+- Resolve real resource IDs before acting. Do not invent hosts, warehouse IDs, job IDs, catalogs, schemas, tables, paths, or statement IDs.
+- Treat a nonzero process exit, API error, permission denial, unreachable host, missing target, and expired authentication as failures—not partial success.
+- For asynchronous work, poll the real resource to a terminal state. An accepted request is not proof of successful completion.
+- Report the command or operation, exit status, target identity, and—when the action produces them—the returned resource ID and terminal state, while redacting secrets and signed URLs.
+- Keep reads bounded. Require authorization before compute starts, writes, deployments, DDL/DML, or other state changes, and exact-target confirmation before destructive or access-changing operations.
+
+## SQL execution
+
+`databricks queries` manages saved query definitions; it does not run SQL. Execute warehouse SQL through the Statement Execution API, for example:
 
 ```powershell
-databricks aitools install --agents codex --scope project
+databricks api post /api/2.0/sql/statements --profile <profile> --json '@request.json' --output json
 ```
 
-Do not run `auth token` in logged automation. Do not assume a profile, workspace, warehouse, catalog, or production target.
+Build `request.json` for the real, discovered warehouse and approved catalog/schema. On Windows PowerShell, prefer the quoted `--json '@request.json'` form because inline JSON is easy to corrupt at the native-process boundary. Poll the returned statement ID until a terminal state, traverse every intended result chunk, and surface truncation or failure.
 
 ## Documentation layout
 
-- `AGENTS.md`: mandatory safety and execution contract
+- `AGENTS.md`: mandatory live-execution and safety contract
 - `docs/AGENT_PLAYBOOK.md`: live-agent decision flow and command patterns
-- `docs/COMMAND_CATALOG.md`: which surface to use for each Databricks task
-- `docs/SQL_STATEMENT_EXECUTION.md`: SQL API request, polling, chunk, cancel, and error contract
+- `docs/COMMAND_CATALOG.md`: which official surface to use for each task
+- `docs/SQL_STATEMENT_EXECUTION.md`: SQL request, polling, chunks, cancellation, and errors
 - `docs/PYSPARK_CONNECT.md`: Databricks Connect and local PySpark boundaries
 - `docs/QUEST_OR_QUERIES.md`: saved queries, Genie, and the possible Quest ambiguity
 - `docs/OFFICIAL_SOURCES.md`: official links and freshness record
 - `references/official_sources.json`: machine-readable source index
 
-Run `databricks-sim.ps1 docs sync` to fetch a fresh, ignored local text cache from the official links. Source summaries remain checked in; downloaded documentation does not.
-
-## Tests
+Optional maintainer task: from the toolkit directory, an already-approved Python 3.9+ interpreter with working HTTPS support can check or refresh the ignored documentation cache from the indexed official URLs:
 
 ```powershell
-& .\databricks-sim.ps1 sim self-test
+python .\scripts\sync_official_docs.py --check-only
+python .\scripts\sync_official_docs.py
 ```
 
-The suite must pass without network access, a Databricks CLI installation, profiles, or credentials.
+That script fetches documentation only. It does not connect to a Databricks workspace or prove that any Databricks command ran.
+Do not install or repair Python just for this optional cache. The checked-in source index and summaries remain usable without it.

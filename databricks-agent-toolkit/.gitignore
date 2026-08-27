@@ -1,6 +1,3 @@
 .cache/
-.sim-state/
-.cache/
 __pycache__/
 *.py[cod]
-.coverage

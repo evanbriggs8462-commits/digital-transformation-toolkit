@@ -1,7 +1,0 @@
-{
-  "warehouse_id": "wh-sim-001",
-  "statement": "/* SIMULATE:FAIL */ SELECT 1 AS probe",
-  "format": "JSON_ARRAY",
-  "disposition": "INLINE",
-  "wait_timeout": "0s"
-}

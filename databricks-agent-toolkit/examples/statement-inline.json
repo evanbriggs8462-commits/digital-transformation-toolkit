@@ -1,9 +1,0 @@
-{
-  "warehouse_id": "wh-sim-001",
-  "catalog": "samples",
-  "schema": "nyctaxi",
-  "statement": "SELECT trip_id, pickup_zone, fare FROM samples.nyctaxi.trips ORDER BY trip_id",
-  "format": "JSON_ARRAY",
-  "disposition": "INLINE",
-  "wait_timeout": "0s"
-}

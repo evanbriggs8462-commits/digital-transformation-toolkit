@@ -1,7 +1,0 @@
-{
-  "display_name": "Offline parameter practice",
-  "warehouse_id": "wh-sim-001",
-  "catalog": "main",
-  "schema": "analytics",
-  "query_text": "SELECT region, total FROM main.analytics.daily_sales ORDER BY region"
-}

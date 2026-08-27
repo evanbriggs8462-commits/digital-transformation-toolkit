@@ -1,82 +1,67 @@
-# Databricks agent toolkit contract
+# Databricks live-agent contract
 
-This directory is a separate companion to the PBIX Intake Lab. It gives an agent a credential-free Databricks-like CLI sandbox and an official-source operating guide. It is not Databricks, Spark, Photon, Unity Catalog enforcement, or proof that a command will succeed in a real workspace.
+This directory is a live-only companion to the PBIX Intake Lab. When a user asks to inspect or operate Databricks through the CLI or REST API, invoke the real approved `databricks` CLI. Explicitly approved PySpark execution may use a real Databricks Connect session. Never use a mock, emulator, fabricated response, cached command output, or documentation example as evidence that an action ran.
 
-## Choose the lane first
+## Non-negotiable execution rule
 
-- Use the simulator unless the user explicitly asks for a live Databricks action.
-- Simulator commands start with `./databricks-sim.ps1`. They never call the network, read `.databrickscfg`, inspect `DATABRICKS_*` variables, or invoke a real `databricks` executable.
-- Live commands start with `databricks`. Do not silently substitute the simulator for a requested live validation, and do not silently substitute a live workspace for a simulation.
-- Do not install the real CLI, authenticate, create a profile, or use a stored profile unless the user has authorized that state change.
+- Requested CLI or API work is complete only after the real `databricks` command returns fresh evidence from the intended workspace. Approved PySpark work is complete only after the intended remote Databricks Connect session returns fresh execution evidence.
+- If the CLI is missing, the approved profile is unavailable, authentication fails, the network is blocked, permissions are insufficient, compute is unavailable, or the target cannot be resolved, stop and report the exact command, exit code, and sanitized error.
+- Never manufacture a successful result, resource ID, row count, terminal state, or validation claim.
+- Never quietly downgrade a requested live validation into a syntax review or documentation answer. Clearly label those as unexecuted if that is all that can be done.
+- Documentation sync is not Databricks execution and cannot satisfy a live request.
 
-## Simulator workflow
+## Authority boundary
 
-From this directory:
+Do not install or upgrade the CLI, authenticate, create or alter profiles, start compute, or make a workspace change unless the user has authorized that action. Do not infer permission for a write merely because read access works.
 
-```powershell
-& .\databricks-sim.ps1 version
-& .\databricks-sim.ps1 current-user me -o json
-& .\databricks-sim.ps1 warehouses list -o json
-& .\databricks-sim.ps1 api post /api/2.0/sql/statements --json '@examples/statement-parameterized.json' -o json
-```
+Read-only discovery is allowed when live Databricks access is in scope: `list`, `get`, `get-effective`, query history, statement status, and bounded `SELECT`, `SHOW`, `DESCRIBE`, or `EXPLAIN` queries.
 
-Use `sim reset` before a deterministic scenario. State belongs only under the ignored local simulator state directory. Never copy real hosts, tokens, client secrets, signed URLs, data, or configuration profiles into fixtures.
+Require explicit user authorization for actions that create cost or change state, including starting compute, triggering or canceling runs, creating or updating saved queries, uploading or syncing files, bundle deploy/run, and SQL DDL or DML.
 
-Simulator success proves request shape, orchestration, polling, chunk traversal, cancellation, parsing, and failure handling only. It does not prove Spark SQL semantics, workspace permissions, data correctness, performance, cost, or cloud behavior.
+Require separate confirmation naming the exact target before permanent deletion, `bundle destroy`, recursive workspace/file deletion, secret deletion, grants or permission changes, warehouse/cluster/job deletion, token revocation, or production deployment. Prefer incremental permission `update`; `set` replaces direct ACLs.
 
 ## Live preflight
 
-Before any live command:
+Before a live operation:
 
-1. Run `databricks version`. CLI `1.0.0+` is GA; the documentation snapshot was checked against `1.14.0`. Runtime `--help` is authoritative when the installed version differs.
-2. Require an explicit profile. Do not rely on `DEFAULT`, environment precedence, or a bundle-selected profile for agent automation.
-3. Use `databricks auth profiles` and `databricks current-user me -p <profile> -o json` to prove the resolved identity. Never run or log `databricks auth token`.
-4. Resolve the exact target IDs with read commands: warehouse, job, catalog/schema/table, bundle target, or workspace path. Names alone are not enough when duplicates or environments exist.
-5. State the intended action, target, expected mutation/cost, and rollback or stop condition before a write.
+1. Run `databricks version`. Runtime `--help` is authoritative for the installed version.
+2. Run `databricks auth profiles`; require an explicitly selected approved profile.
+3. Run `databricks current-user me --profile <profile> --output json` to prove the resolved principal. Never run or log `databricks auth token`.
+4. Establish the workspace host without exposing credentials, then resolve exact target IDs with read commands.
+5. For a mutation, state the action, target, expected cost or state change, and rollback or stop condition before executing.
 
-Prefer OAuth U2M for attended user work and a least-privilege service principal with OAuth M2M or workload identity federation for unattended automation. PATs are legacy. Never place credentials in commands, JSON bodies, source files, logs, query tags, or chat.
+Prefer OAuth U2M for attended user work and a least-privilege service principal with OAuth M2M or workload identity federation for unattended automation. Never place credentials in commands, request bodies, source files, logs, query tags, or chat.
 
 ## Command truth
 
 - `databricks queries` manages saved query definitions. It does not execute SQL.
-- Execute warehouse SQL through `databricks api post /api/2.0/sql/statements --json '@request.json'` in PowerShell, or a supported connector/SDK.
-- Use named SQL parameters (`:name`) and the request `parameters` array. The Statement Execution API does not support positional `?` markers.
-- Use `-o json` for machine parsing and `--json '@file.json'` for complex request bodies in PowerShell. Avoid inline shell JSON.
-- Treat `next_page_token`, `next_chunk_internal_link`, `next_chunk_index`, and `manifest.truncated` as control flow, not decoration.
-- An HTTP-accepted SQL request can still have `status.state: FAILED`. Success requires a terminal `SUCCEEDED` state and complete intended results.
-- A cancel response means the request was received; poll until a terminal state.
-- Never attach Databricks authorization headers to Statement API external-result URLs, and never log those signed URLs.
-- Use Unity Catalog volumes for governed non-tabular files. DBFS root and mounts are deprecated; `dbfs:/Volumes/...` is the reserved volume namespace, not legacy DBFS root.
-
-## Authorization boundary
-
-Read-only discovery is allowed when live access is explicitly in scope: `list`, `get`, `get-effective`, query history, statement status, and bounded SELECT/SHOW/DESCRIBE/EXPLAIN queries.
-
-Require explicit user authorization for actions that create cost or change state, including starting compute, triggering or canceling runs, creating/updating saved queries, uploading/syncing files, bundle deploy/run, and SQL DDL or DML.
-
-Require a separate explicit confirmation naming the exact target for destructive or access-changing actions, including permanent delete, `bundle destroy`, workspace/fs recursive delete, secret deletion, grants/permissions changes, warehouse/cluster/job deletion, token revocation, and production deployment. Never use `permissions set` when an incremental `update` is intended; `set` replaces direct ACLs.
+- Execute warehouse SQL through `databricks api post /api/2.0/sql/statements --profile <profile> --json '@request.json' --output json`.
+- In Windows PowerShell, use a request file and the quoted `--json '@request.json'` form. Avoid complex inline shell JSON.
+- Use named SQL parameters such as `:name` with the API `parameters` array. Do not assume positional `?` markers work.
+- Treat `next_page_token`, `next_chunk_internal_link`, `next_chunk_index`, and `manifest.truncated` as control flow.
+- An HTTP-accepted request can still end in `FAILED`. Success requires the real terminal `SUCCEEDED` state and all intended results.
+- A cancellation acknowledgement is not a terminal state; continue polling.
+- Never attach Databricks authorization headers to Statement API external-result URLs, and never log signed URLs.
+- `Quest` is not a core Databricks CLI command. If that word appears, consult `docs/QUEST_OR_QUERIES.md` and resolve whether the user means queries, Genie, or another product.
 
 ## SQL execution defaults
 
 - Read-only unless a write was explicitly approved.
-- Require warehouse ID, profile, catalog, and schema for noninteractive live execution.
-- Default to finite `row_limit` and `byte_limit`; surface truncation.
+- Require a profile, warehouse ID, catalog, and schema for noninteractive SQL.
+- Set finite `row_limit` and `byte_limit`, and report truncation.
 - For automation, use `wait_timeout: "0s"`, bounded polling with jitter, a local deadline, and cancel-then-poll on interruption.
 - Persist the statement ID and a sanitized audit record. Query tags may contain an environment, tool version, and opaque run ID only.
-- Retry only safe reads and documented transient errors. Never blindly retry DDL/DML or an ambiguous timeout.
+- Retry only idempotent reads and documented transient errors. Never blindly retry DDL, DML, or an ambiguous timeout.
 
-## Development and verification
+## Completion evidence
 
-Run the offline suite with an available Python 3.9+ interpreter:
+For each live action, preserve enough sanitized evidence to distinguish execution from advice:
 
-```powershell
-& .\databricks-sim.ps1 sim self-test
-```
+- CLI version and explicit profile name
+- resolved workspace host and authenticated principal
+- exact command family and target resource IDs
+- process exit code or HTTP status
+- returned operation or statement ID, when the action creates one
+- real terminal state, when asynchronous, and a bounded result summary
 
-Refresh the ignored live documentation cache only when internet access is intended:
-
-```powershell
-& .\databricks-sim.ps1 docs sync
-```
-
-Read `docs/AGENT_PLAYBOOK.md` before live work and `docs/SQL_STATEMENT_EXECUTION.md` before executing SQL. If “Quest” appears in a request, consult `docs/QUEST_OR_QUERIES.md`; it is not a core CLI command.
+Read `docs/AGENT_PLAYBOOK.md` before live work and `docs/SQL_STATEMENT_EXECUTION.md` before executing SQL. With an already-approved Python 3.9+ interpreter that has working HTTPS support, the official-source cache can optionally be checked with `python .\scripts\sync_official_docs.py --check-only`; it is reference maintenance only. Do not install or repair Python for this task.

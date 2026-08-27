@@ -1,8 +1,0 @@
-{
-  "warehouse_id": "wh-sim-001",
-  "statement": "SELECT * FROM samples.nyctaxi.trips",
-  "format": "JSON_ARRAY",
-  "disposition": "EXTERNAL_LINKS",
-  "row_limit": 5,
-  "wait_timeout": "0s"
-}
