@@ -5,3 +5,7 @@ tests/downloads/
 tests/results/
 *.tmp
 *.log
+.claude/state/
+.claude/settings.local.json
+__pycache__/
+*.py[cod]

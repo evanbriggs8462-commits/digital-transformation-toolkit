@@ -1,5 +1,7 @@
 # Databricks Agent Toolkit
 
+Claude Code users can open the repository root to use the focused skills in `.claude/skills/`. See [Claude Code finance skills](../docs/CLAUDE_CODE_SKILLS.md) for commands, SAP table references, and local compaction handoffs. The live-execution contract below still applies.
+
 This is a live-only instruction set for coding agents that operate Databricks through the official CLI. The CLI's `databricks api` command is the required path for uncovered REST endpoints. Explicitly approved PySpark work may use a real Databricks Connect session. The toolkit contains no emulator, mock workspace, synthetic execution path, bundled CLI, installer, credentials, or fake-success fallback.
 
 An agent may claim that a CLI or API action ran only when the real `databricks` command returned evidence from the intended workspace. An approved PySpark action requires fresh evidence from the intended remote Databricks Connect session. If the required live surface, approved profile, authentication, network, permissions, compute, or target is unavailable, the agent must report the exact blocker. It must never replace execution with invented output.
