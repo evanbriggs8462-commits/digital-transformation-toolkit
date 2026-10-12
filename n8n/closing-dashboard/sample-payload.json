@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-10-06T15:30:00Z",
+  "defaultPeriod": "2026-09",
+  "timeZone": "America/New_York",
+  "dashboardUrl": "https://YOUR-INSTANCE.app.n8n.cloud/webhook/closing-dashboard",
+  "formUrl": "https://YOUR-INSTANCE.app.n8n.cloud/form/YOUR-CLOSING-FORM",
+  "viewer": {
+    "authenticated": true,
+    "id": "EXAMPLE-VERIFIED-SUBJECT",
+    "name": "Example controller",
+    "scopeLabel": "Optical Connectivity \u00b7 permitted OUs"
+  },
+  "rows": [
+    {
+      "id": "2026-09-US10-10301067-entity",
+      "period": "2026-09",
+      "bu": "Optical Connectivity",
+      "ou": "10301067",
+      "entity": "Hickory \u00b7 NC Engineering Services",
+      "erp": "SAP \u00b7 US10",
+      "taskType": "Entity close",
+      "required": true,
+      "status": "closed",
+      "targetAt": "2026-10-05T19:00:00Z",
+      "closedAt": "2026-10-05T16:00:00Z",
+      "owner": "Plant controller",
+      "closedBy": "Example authorized controller"
+    },
+    {
+      "id": "2026-09-MX10-10271193-entity",
+      "period": "2026-09",
+      "bu": "Optical Connectivity",
+      "ou": "10271193",
+      "entity": "Corning Optical Communications",
+      "erp": "SAP \u00b7 MX10",
+      "taskType": "Entity close",
+      "required": true,
+      "status": "open",
+      "targetAt": "2026-10-05T18:00:00Z",
+      "closedAt": null,
+      "owner": "Plant controller"
+    },
+    {
+      "id": "2026-09-TASK-revenue",
+      "period": "2026-09",
+      "bu": "Optical Connectivity",
+      "ou": "COC-JE",
+      "entity": "Commercial Revenue Entries",
+      "erp": "COC TASK",
+      "taskType": "Finance task",
+      "required": true,
+      "status": "reopened",
+      "targetAt": "2026-10-06T16:00:00Z",
+      "closedAt": null,
+      "owner": "Corporate finance"
+    }
+  ]
+}
