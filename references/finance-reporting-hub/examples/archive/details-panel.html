@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Archived — Details Panel Concept</title>
+<style>
+:root{color-scheme:light dark;font-family:"Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:light-dark(#eef2f7,#101827);color:light-dark(#172b4d,#edf3fc)}
+*{box-sizing:border-box}
+body{margin:0;padding:20px}
+.preview-shell{max-width:1280px;margin:0 auto}
+.preview-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:16px 0 20px;font-size:14px}
+.preview-controls label{font-weight:600}
+.preview-controls select{font:inherit;padding:9px 12px;border:1px solid currentColor;border-radius:6px;background:light-dark(#fff,#1e2939);color:inherit;min-height:44px}
+.preview-controls p{flex:1;min-width:220px;margin:0;color:light-dark(#526173,#b4c4d9);line-height:1.5}
+.preview-notice{padding:16px 20px;margin:0 0 18px;border-left:4px solid #a66a16;background:light-dark(#fff6e7,#352a1c);color:light-dark(#674710,#f4d7a2);line-height:1.6;font-size:14px}
+.preview-notice strong{font-weight:600}
+.cursor-interaction{cursor:pointer}
+[hidden]{display:none!important}
+@media(max-width:580px){body{padding:8px}.preview-controls{align-items:stretch}.preview-controls select{font-size:16px;width:100%}}
+</style>
+</head>
+<body>
+<main class="preview-shell">
+<aside class="preview-notice" aria-label="Archived design status"><strong>Archived concept — superseded.</strong> This earlier exploration used a permanent details panel for lengthy guidance. The current design direction is a compact catalog with brief descriptions, topics, and key tabs directly on each tile. Owner, refresh, and unavailable-link fields are intentionally omitted from the current design. This file is retained only to document the design decision; do not use it as the production starting point.</aside>
+<style>
+#finance-hub-proposal{--fh-bg:light-dark(#f6f8fb,#141d2b);--fh-surface:light-dark(#ffffff,#1d293b);--fh-ink:light-dark(#16263d,#eef3fb);--fh-muted:light-dark(#53647b,#b7c5d8);--fh-line:light-dark(#dce4ee,#3b4b61);--fh-blue:light-dark(#185baf,#8bbcff);--fh-soft:light-dark(#eaf2fc,#243e61);--fh-warn:light-dark(#fff6e7,#3f3320);--fh-warn-ink:light-dark(#73500c,#f7d18a);font-family:'Segoe UI',Arial,sans-serif;color:var(--fh-ink);background:var(--fh-bg);border-radius:12px;overflow:clip;line-height:1.5;text-align:left;isolation:isolate}
+#finance-hub-proposal *{box-sizing:border-box}
+#finance-hub-proposal button,#finance-hub-proposal input{font:inherit}
+#finance-hub-proposal button{color:inherit}
+#finance-hub-proposal button:focus-visible,#finance-hub-proposal input:focus-visible,#finance-hub-proposal summary:focus-visible{outline:3px solid var(--fh-blue);outline-offset:3px}
+#finance-hub-proposal [hidden]{display:none!important}
+#finance-hub-proposal .fh-header{padding:28px 28px 22px;background:var(--fh-surface);border-top:5px solid var(--fh-blue);border-bottom:1px solid var(--fh-line)}
+#finance-hub-proposal .fh-eyebrow{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fh-blue);font-weight:600;margin:0 0 6px}
+#finance-hub-proposal h1{font-size:28px;font-weight:600;letter-spacing:-.7px;line-height:1.2;margin:0 0 8px;padding-right:90px}
+#finance-hub-proposal .fh-intro{font-size:14px;color:var(--fh-muted);margin:0}
+#finance-hub-proposal .fh-toolbar{padding:20px 28px 16px}
+#finance-hub-proposal .fh-search-label{display:block;font-size:12px;font-weight:600;margin-bottom:6px}
+#finance-hub-proposal .fh-search{width:100%;max-width:440px;border:1px solid var(--fh-line);border-radius:7px;padding:10px 12px;color:var(--fh-ink);background:var(--fh-surface);font-size:14px}
+#finance-hub-proposal .fh-filterbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:16px}
+#finance-hub-proposal .fh-filter{border:1px solid var(--fh-line);background:var(--fh-surface);padding:6px 12px;border-radius:6px;font-size:13px}
+#finance-hub-proposal .fh-filter[aria-pressed=true]{background:var(--fh-blue);border-color:var(--fh-blue);color:light-dark(#fff,#13253e)}
+#finance-hub-proposal .fh-results{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:17px;font-size:12px;color:var(--fh-muted)}
+#finance-hub-proposal .fh-reset{border:0;padding:3px 0;background:transparent;font-size:12px;color:var(--fh-blue);text-decoration:underline;text-underline-offset:3px}
+#finance-hub-proposal .fh-main{padding:0 28px 24px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+#finance-hub-proposal .fh-catalog{min-width:0}
+#finance-hub-proposal .fh-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#finance-hub-proposal .fh-report{display:flex;flex-direction:column;min-width:0;min-height:192px;background:var(--fh-surface);border:1px solid var(--fh-line);border-radius:8px;padding:17px;transition:border-color .12s ease,box-shadow .12s ease}
+#finance-hub-proposal .fh-report[data-selected=true]{border-color:var(--fh-blue);box-shadow:inset 3px 0 0 var(--fh-blue)}
+#finance-hub-proposal .fh-topic{font-size:11px;color:var(--fh-blue);font-weight:600;margin-bottom:7px}
+#finance-hub-proposal h2{font-size:16px;line-height:1.3;font-weight:600;margin:0 0 7px;overflow-wrap:anywhere}
+#finance-hub-proposal .fh-summary{font-size:13px;line-height:1.5;color:var(--fh-muted);margin:0 0 10px}
+#finance-hub-proposal .fh-keynote{font-size:11px;color:var(--fh-warn-ink);background:var(--fh-warn);border-radius:4px;padding:4px 7px;margin:0 0 10px;align-self:start}
+#finance-hub-proposal .fh-cardfooter{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:9px;border-top:1px solid var(--fh-line)}
+#finance-hub-proposal .fh-format{font-size:11px;color:var(--fh-muted)}
+#finance-hub-proposal .fh-detail-trigger{font-size:12px;font-weight:600;color:var(--fh-blue);background:transparent;border:0;padding:4px 0;text-align:left}
+#finance-hub-proposal .fh-panel{background:var(--fh-surface);border:1px solid var(--fh-line);border-radius:8px;min-height:590px;padding:20px;min-width:0}
+#finance-hub-proposal .fh-paneltop{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-bottom:18px}
+#finance-hub-proposal .fh-panel-label{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--fh-muted);font-weight:600}
+#finance-hub-proposal .fh-close{border:0;background:transparent;font-size:12px;color:var(--fh-blue);padding:2px}
+#finance-hub-proposal .fh-panel h2{font-size:21px;letter-spacing:-.3px;margin-bottom:5px}
+#finance-hub-proposal .fh-original{font-size:12px;color:var(--fh-muted);margin:0 0 15px}
+#finance-hub-proposal .fh-panel h3{font-size:12px;font-weight:600;margin:20px 0 7px}
+#finance-hub-proposal .fh-panel p,#finance-hub-proposal .fh-panel li{font-size:13px;color:var(--fh-muted)}
+#finance-hub-proposal .fh-panel p{margin:0 0 12px}
+#finance-hub-proposal .fh-callout{background:var(--fh-warn);border-radius:6px;padding:12px;margin:16px 0}
+#finance-hub-proposal .fh-callout p{color:var(--fh-warn-ink);margin:0;font-size:12px}
+#finance-hub-proposal .fh-panel ul{margin:0;padding-left:18px}
+#finance-hub-proposal .fh-panel li+li{margin-top:7px}
+#finance-hub-proposal .fh-pages{display:flex;flex-wrap:wrap;gap:6px}
+#finance-hub-proposal .fh-page{background:var(--fh-bg);border:1px solid var(--fh-line);border-radius:4px;padding:4px 7px;font-size:11px;color:var(--fh-muted)}
+#finance-hub-proposal .fh-open{width:100%;border:0;background:var(--fh-blue);color:light-dark(#fff,#13253e);font-size:13px;font-weight:600;border-radius:6px;padding:10px 12px;margin-top:20px}
+#finance-hub-proposal .fh-open:disabled{background:var(--fh-bg);color:var(--fh-muted);border:1px solid var(--fh-line)}
+#finance-hub-proposal .fh-linknote{font-size:11px!important;margin:7px 0 0!important}
+#finance-hub-proposal .fh-blank{padding-top:45px;text-align:center}
+#finance-hub-proposal .fh-blank p{max-width:230px;margin:8px auto}
+#finance-hub-proposal .fh-empty{padding:26px 16px;background:var(--fh-surface);border:1px solid var(--fh-line);border-radius:8px;font-size:14px}
+#finance-hub-proposal .fh-footer{border-top:1px solid var(--fh-line);padding:12px 28px;color:var(--fh-muted);font-size:11px}
+#finance-hub-proposal .fh-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+@media(max-width:800px){#finance-hub-proposal .fh-main{grid-template-columns:minmax(0,1fr)}#finance-hub-proposal .fh-panel{min-height:0}#finance-hub-proposal:not([data-mobile-detail=true]) .fh-panel{display:none}#finance-hub-proposal[data-mobile-detail=true] .fh-catalog,#finance-hub-proposal[data-mobile-detail=true] .fh-toolbar{display:none}}
+@media(max-width:460px){#finance-hub-proposal .fh-header{padding:22px 18px 18px}#finance-hub-proposal h1{font-size:25px;padding-right:0}#finance-hub-proposal .fh-toolbar{padding:18px}#finance-hub-proposal .fh-main{padding:0 18px 20px}#finance-hub-proposal .fh-grid{grid-template-columns:1fr}#finance-hub-proposal .fh-search{font-size:16px}#finance-hub-proposal .fh-report{min-height:166px}#finance-hub-proposal .fh-footer{padding:12px 18px}}
+@media(pointer:coarse){#finance-hub-proposal .fh-filter,#finance-hub-proposal .fh-detail-trigger,#finance-hub-proposal .fh-close,#finance-hub-proposal .fh-reset{min-height:44px}}
+@media(prefers-reduced-motion:reduce){#finance-hub-proposal .fh-report{transition:none}}
+</style>
+<section id="finance-hub-proposal" aria-label="Finance Reporting Hub design proposal">
+  <header class="fh-header">
+    <p class="fh-eyebrow">Finance · Reporting & tools</p>
+    <h1>Finance Reporting Hub</h1>
+    <p class="fh-intro">Find the right report. Understand its scope. Get to your answer.</p>
+  </header>
+  <div class="fh-toolbar">
+    <label class="fh-search-label" for="fh-search">Find a report</label>
+    <input class="fh-search" id="fh-search" type="search" placeholder="Search a name, topic, or familiar abbreviation">
+    <div class="fh-filterbar" role="group" aria-label="Finance topic">
+      <button type="button" class="fh-filter cursor-interaction" data-topic="All" aria-pressed="true">All topics</button>
+      <button type="button" class="fh-filter cursor-interaction" data-topic="Revenue" aria-pressed="false">Revenue</button>
+      <button type="button" class="fh-filter cursor-interaction" data-topic="Inventory" aria-pressed="false">Inventory</button>
+      <button type="button" class="fh-filter cursor-interaction" data-topic="Cost" aria-pressed="false">Cost &amp; scrap</button>
+      <button type="button" class="fh-filter cursor-interaction" data-topic="Expenses" aria-pressed="false">Expenses</button>
+      <button type="button" class="fh-filter cursor-interaction" data-topic="Close" aria-pressed="false">Month-end</button>
+      <button type="button" class="fh-filter cursor-interaction" data-topic="Receivables" aria-pressed="false">Receivables</button>
+    </div>
+    <div class="fh-results"><span id="fh-count" role="status" aria-live="polite">6 example reports</span><button type="button" class="fh-reset cursor-interaction" id="fh-reset">Reset filters</button></div>
+  </div>
+  <div class="fh-main">
+    <div class="fh-catalog">
+      <div class="fh-grid" id="fh-grid"></div>
+      <p class="fh-empty" id="fh-empty" hidden>No reports match. Try another topic or reset your filters.</p>
+    </div>
+    <aside class="fh-panel" id="fh-panel" aria-label="Selected report details">
+      <div class="fh-paneltop"><span class="fh-panel-label">Report guide</span><button type="button" class="fh-close cursor-interaction" id="fh-close">Close details</button></div>
+      <div id="fh-detail-content"></div>
+    </aside>
+  </div>
+  <div class="fh-sr" role="status" aria-live="polite" id="fh-announcement"></div>
+  <footer class="fh-footer">Archived design proposal · Entirely fictional reports, descriptions, and tab names</footer>
+</section>
+<script>
+(()=>{
+  const root=document.getElementById('finance-hub-proposal');
+  const catalog=[
+  {
+    "id": "revenue",
+    "title": "Revenue performance",
+    "original": "Illustrative example",
+    "category": "Revenue",
+    "tags": [
+      "Sales",
+      "Trends"
+    ],
+    "summary": "Explore illustrative sales trends and revenue comparisons by period.",
+    "purpose": "Explore illustrative sales trends and revenue comparisons by period.",
+    "notes": [
+      "This example demonstrates a layout pattern, not a real financial report."
+    ],
+    "pages": [
+      "Overview",
+      "Trends",
+      "Detail"
+    ],
+    "extra": "Read the report introduction for detailed definitions in a real implementation.",
+    "keyNote": "Illustrative content only",
+    "caution": "All names, summaries, and tabs in this example are fictional."
+  },
+  {
+    "id": "inventory",
+    "title": "Inventory overview",
+    "original": "Illustrative example",
+    "category": "Inventory",
+    "tags": [
+      "Balances",
+      "Stock"
+    ],
+    "summary": "Browse illustrative inventory balances and changes across reporting periods.",
+    "purpose": "Browse illustrative inventory balances and changes across reporting periods.",
+    "notes": [
+      "This example demonstrates a layout pattern, not a real financial report."
+    ],
+    "pages": [
+      "Balances",
+      "Movement"
+    ],
+    "extra": "Read the report introduction for detailed definitions in a real implementation."
+  },
+  {
+    "id": "cost-scrap",
+    "title": "Cost and scrap analysis",
+    "original": "Illustrative example",
+    "category": "Cost",
+    "tags": [
+      "Scrap",
+      "Cost of goods sold"
+    ],
+    "summary": "Review illustrative production costs and scrap patterns.",
+    "purpose": "Review illustrative production costs and scrap patterns.",
+    "notes": [
+      "This example demonstrates a layout pattern, not a real financial report."
+    ],
+    "pages": [
+      "Cost summary",
+      "Scrap trends"
+    ],
+    "extra": "Read the report introduction for detailed definitions in a real implementation."
+  },
+  {
+    "id": "opex",
+    "title": "Operating expense review",
+    "original": "Illustrative example",
+    "category": "Expenses",
+    "tags": [
+      "Budget",
+      "Spending"
+    ],
+    "summary": "Compare illustrative operating expenses with budget.",
+    "purpose": "Compare illustrative operating expenses with budget.",
+    "notes": [
+      "This example demonstrates a layout pattern, not a real financial report."
+    ],
+    "pages": [
+      "Summary",
+      "Budget comparison"
+    ],
+    "extra": "Read the report introduction for detailed definitions in a real implementation."
+  },
+  {
+    "id": "close",
+    "title": "Month-end status",
+    "original": "Illustrative example",
+    "category": "Close",
+    "tags": [
+      "Tasks",
+      "Period"
+    ],
+    "summary": "Check illustrative month-end task progress by reporting area.",
+    "purpose": "Check illustrative month-end task progress by reporting area.",
+    "notes": [
+      "This example demonstrates a layout pattern, not a real financial report."
+    ],
+    "pages": [
+      "Status",
+      "Task detail"
+    ],
+    "extra": "Read the report introduction for detailed definitions in a real implementation."
+  },
+  {
+    "id": "receivables",
+    "title": "Receivables overview",
+    "original": "Illustrative example",
+    "category": "Receivables",
+    "tags": [
+      "Aging",
+      "Collections"
+    ],
+    "summary": "Review illustrative receivable balances and aging categories.",
+    "purpose": "Review illustrative receivable balances and aging categories.",
+    "notes": [
+      "This example demonstrates a layout pattern, not a real financial report."
+    ],
+    "pages": [
+      "Balances",
+      "Aging"
+    ],
+    "extra": "Read the report introduction for detailed definitions in a real implementation."
+  }
+];
+  const state={topic:'All',query:'',selected:'revenue',mobileDetail:false};
+  const grid=root.querySelector('#fh-grid'),detail=root.querySelector('#fh-detail-content'),close=root.querySelector('#fh-close'),search=root.querySelector('#fh-search');
+  const narrow=()=>window.matchMedia('(max-width:800px)').matches;
+  let invoker=null,savedY=0;
+  const el=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
+  function filtered(){return catalog.filter(r=>(state.topic==='All'||r.category===state.topic||r.tags.includes(state.topic))&&[r.title,r.original,r.summary,r.category,...r.tags].join(' ').toLowerCase().includes(state.query.toLowerCase().trim()));}
+  function updateSelected(){root.querySelectorAll('.fh-report').forEach(n=>{const yes=n.dataset.id===state.selected;n.dataset.selected=String(yes);const b=n.querySelector('button');b.setAttribute('aria-expanded',String(yes));b.textContent=yes?'Viewing details':'View details →';});}
+  function showDetails(){
+    detail.replaceChildren();
+    const r=catalog.find(x=>x.id===state.selected);
+    close.hidden=!r;
+    close.textContent=narrow()?'← Back to reports':'Close details';
+    root.dataset.mobileDetail=String(state.mobileDetail&&!!r);
+    if(!r){const blank=el('div','fh-blank');blank.append(el('h2','','Select a report'),el('p','','Its purpose, scope, and important notes will appear here.'));detail.append(blank);return;}
+    detail.append(el('h2','',r.title),el('p','fh-original',r.original),el('h3','','Use this for'),el('p','',r.purpose));
+    if(r.caution){const caution=el('div','fh-callout');caution.append(el('p','',r.caution));detail.append(caution);}
+    if(r.notes.length){detail.append(el('h3','','Important differences'));const list=el('ul');r.notes.forEach(t=>list.append(el('li','',t)));detail.append(list);}
+    if(r.pages.length){detail.append(el('h3','','Pages include'));const pages=el('div','fh-pages');r.pages.forEach(t=>pages.append(el('span','fh-page',t)));detail.append(pages);}
+    detail.append(el('h3','','Guide notes'),el('p','',r.extra));
+    const open=el('button','fh-open','Open report ↗');open.type='button';open.disabled=true;detail.append(open,el('p','fh-linknote','Report link not connected in this proposal.'));
+  }
+  function selectReport(id,trigger){state.selected=id;invoker=trigger;savedY=window.scrollY;state.mobileDetail=narrow();updateSelected();showDetails();root.querySelector('#fh-announcement').textContent='Showing details for '+catalog.find(x=>x.id===id).title;if(state.mobileDetail)close.focus();}
+  function dismiss(){state.selected=null;state.mobileDetail=false;updateSelected();showDetails();if(invoker&&invoker.isConnected){invoker.focus({preventScroll:true});if(narrow())window.scrollTo({top:savedY,behavior:'instant'});}}
+  function render(){
+    const rows=filtered();
+    if(state.selected&&!rows.some(r=>r.id===state.selected)){state.selected=null;state.mobileDetail=false;}
+    grid.replaceChildren();
+    rows.forEach(r=>{const card=el('article','fh-report');card.dataset.id=r.id;card.append(el('span','fh-topic',r.category==='Cost'?'Cost & scrap':r.category==='Close'?'Month-end':r.category),el('h2','',r.title),el('p','fh-summary',r.summary));if(r.keyNote)card.append(el('p','fh-keynote',r.keyNote));const footer=el('div','fh-cardfooter');const button=el('button','fh-detail-trigger cursor-interaction','View details →');button.type='button';button.setAttribute('aria-label','View details for '+r.title);button.setAttribute('aria-controls','fh-panel');button.addEventListener('click',()=>selectReport(r.id,button));footer.append(el('span','fh-format','Power BI report'),button);card.append(footer);grid.append(card);});
+    root.querySelector('#fh-count').textContent=rows.length+' of '+catalog.length+' example reports';root.querySelector('#fh-empty').hidden=rows.length!==0;
+    root.querySelectorAll('[data-topic]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.topic===state.topic)));updateSelected();showDetails();
+  }
+  root.querySelectorAll('[data-topic]').forEach(b=>b.addEventListener('click',()=>{state.topic=b.dataset.topic;render();}));
+  search.addEventListener('input',()=>{state.query=search.value;render();});
+  root.querySelector('#fh-reset').addEventListener('click',()=>{state.topic='All';state.query='';search.value='';render();});
+  close.addEventListener('click',dismiss);
+  root.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.selected){e.preventDefault();dismiss();}});
+  window.addEventListener('resize',()=>{if(!narrow())state.mobileDetail=false;showDetails();});
+  render();
+})();
+</script>
+
+</main>
+</body>
+</html>

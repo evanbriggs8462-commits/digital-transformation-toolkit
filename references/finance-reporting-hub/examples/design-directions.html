@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Finance Reporting Hub — Design Directions</title>
+<style>
+:root{color-scheme:light dark;font-family:"Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:light-dark(#eef2f7,#101827);color:light-dark(#172b4d,#edf3fc)}
+*{box-sizing:border-box}
+body{margin:0;padding:20px}
+.preview-shell{max-width:1280px;margin:0 auto}
+.preview-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:16px 0 20px;font-size:14px}
+.preview-controls label{font-weight:600}
+.preview-controls select{font:inherit;padding:9px 12px;border:1px solid currentColor;border-radius:6px;background:light-dark(#fff,#1e2939);color:inherit;min-height:44px}
+.preview-controls p{flex:1;min-width:220px;margin:0;color:light-dark(#526173,#b4c4d9);line-height:1.5}
+.preview-notice{padding:16px 20px;margin:0 0 18px;border-left:4px solid #a66a16;background:light-dark(#fff6e7,#352a1c);color:light-dark(#674710,#f4d7a2);line-height:1.6;font-size:14px}
+.preview-notice strong{font-weight:600}
+.cursor-interaction{cursor:pointer}
+[hidden]{display:none!important}
+@media(max-width:580px){body{padding:8px}.preview-controls{align-items:stretch}.preview-controls select{font-size:16px;width:100%}}
+</style>
+</head>
+<body>
+<main class="preview-shell">
+<div class="preview-controls">
+<label for="layout-choice">Design direction</label>
+<select id="layout-choice" aria-controls="hub-design-options">
+<option value="Compact tiles">Compact tiles — recommended</option>
+<option value="Report index">Report index</option>
+<option value="Finance chapters">Finance chapters</option>
+</select>
+<p>Standalone concept comparison. Search and filters work locally. Report selections do not navigate to real destinations.</p>
+</div>
+<style>
+#hub-design-options .hub-stage{--hub-bg:light-dark(#f7f9fc,#141d2a);--hub-paper:light-dark(#ffffff,#1e2939);--hub-text:light-dark(#172b4d,#edf3fc);--hub-muted:light-dark(#526173,#b4c4d9);--hub-border:light-dark(#dce4ee,#3c4e64);--hub-blue:light-dark(#0f5ba7,#8cbdff);--hub-tint:light-dark(#eaf2fc,#263e5d);font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--hub-bg);color:var(--hub-text);min-height:900px;container-type:inline-size;box-sizing:border-box;text-align:left;border-radius:10px;overflow:clip}
+#hub-design-options .hub-stage *{box-sizing:border-box}
+#hub-design-options .hub-stage button,#hub-design-options .hub-stage input{font:inherit}
+#hub-design-options .hub-stage button:focus-visible,#hub-design-options .hub-stage input:focus-visible{outline:3px solid var(--hub-blue);outline-offset:3px}
+#hub-design-options .hub-head{position:relative;padding:24px;background:var(--hub-paper);border-top:4px solid var(--hub-blue);border-bottom:1px solid var(--hub-border);overflow:hidden}
+#hub-design-options .hub-eyebrow{font-size:12px;line-height:18px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--hub-blue);margin:0 0 5px;position:relative;z-index:1}
+#hub-design-options h1{font-size:28px;line-height:36px;font-weight:600;letter-spacing:-.6px;margin:0 0 4px;position:relative;z-index:1}
+#hub-design-options .hub-subtitle{font-size:16px;line-height:24px;margin:0;color:var(--hub-muted);position:relative;z-index:1;max-width:610px}
+#hub-design-options .hub-fiber{position:absolute;right:-45px;top:-82px;width:300px;height:300px;border-radius:50%;background:repeating-radial-gradient(ellipse at 90% 10%,transparent 0px,transparent 16px,var(--hub-tint) 17px,var(--hub-tint) 19px,transparent 20px);pointer-events:none;transform:rotate(-15deg);opacity:.85}
+#hub-design-options .hub-body{padding:22px 24px 16px}
+#hub-design-options .hub-toolbar{display:flex;gap:18px;flex-wrap:wrap;align-items:end;justify-content:space-between;margin-bottom:16px}
+#hub-design-options .hub-searchlabel{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;flex:1;max-width:460px;min-width:min(100%,230px)}
+#hub-design-options .hub-search{width:100%;padding:10px 12px;border:1px solid var(--hub-muted);border-radius:6px;background:var(--hub-paper);color:var(--hub-text);font-size:14px;line-height:20px;font-weight:400}
+#hub-design-options .hub-search::placeholder{color:var(--hub-muted);opacity:1}
+#hub-design-options .hub-count{font-size:13px;color:var(--hub-muted);margin:0 0 11px}
+#hub-design-options .hub-topics{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px}
+#hub-design-options .hub-filter{font-size:14px;line-height:20px;font-weight:500;padding:8px 12px;border:1px solid transparent;border-radius:5px;color:var(--hub-muted);background:var(--hub-paper)}
+#hub-design-options .hub-filter[aria-pressed=true]{background:var(--hub-blue);color:light-dark(#fff,#142a47)}
+#hub-design-options .hub-filter:hover{border-color:var(--hub-blue)}
+#hub-design-options .hub-collection{display:grid;gap:16px;grid-template-columns:repeat(3,minmax(0,1fr));list-style:none;padding:0;margin:0}
+#hub-design-options .hub-entry{margin:0;min-width:0}
+#hub-design-options .hub-tile{height:100%;min-height:248px;display:flex;flex-direction:column;align-items:stretch;width:100%;text-align:left;background:var(--hub-paper);border:1px solid var(--hub-border);border-radius:8px;padding:20px;color:var(--hub-text);transition:border-color .12s ease,box-shadow .12s ease}
+#hub-design-options .hub-tile:hover{border-color:var(--hub-blue);box-shadow:0 3px 10px light-dark(#172b4d12,#00000020)}
+#hub-design-options .hub-tile[aria-pressed=true]{border-color:var(--hub-blue);box-shadow:inset 3px 0 0 var(--hub-blue)}
+#hub-design-options .hub-topic{font-size:13px;line-height:18px;font-weight:500;color:var(--hub-blue);margin-bottom:10px;display:block}
+#hub-design-options .hub-title{display:block;font-size:18px;line-height:24px;font-weight:600;letter-spacing:-.15px;margin-bottom:8px;overflow-wrap:anywhere}
+#hub-design-options .hub-description{display:block;font-size:16px;line-height:24px;font-weight:400;color:var(--hub-muted);margin-bottom:16px}
+#hub-design-options .hub-tabs{display:block;font-size:13px;line-height:19px;color:var(--hub-muted);margin-bottom:14px;font-weight:400}
+#hub-design-options .hub-open{display:block;font-size:14px;line-height:20px;font-weight:600;color:var(--hub-blue);margin-top:auto}
+#hub-design-options .hub-empty{color:var(--hub-muted);padding:24px 0;font-size:16px;line-height:24px}
+#hub-design-options .hub-bottom{min-height:52px;display:flex;align-items:center;padding:14px 24px;font-size:12px;line-height:18px;color:var(--hub-muted);border-top:1px solid var(--hub-border);margin-top:12px}
+#hub-design-options .hub-index .hub-collection{display:block;background:var(--hub-paper);border-top:1px solid var(--hub-border)}
+#hub-design-options .hub-index .hub-tile{min-height:0;display:grid;grid-template-columns:minmax(160px,1fr) minmax(240px,1.5fr) 115px;gap:8px 24px;align-items:start;border-width:0 0 1px;border-radius:0;padding:20px 18px;background:transparent}
+#hub-design-options .hub-index .hub-title{grid-column:1;grid-row:1;margin:0}
+#hub-design-options .hub-index .hub-topic{grid-column:1;grid-row:2;margin:0}
+#hub-design-options .hub-index .hub-description{grid-column:2;grid-row:1;margin:0}
+#hub-design-options .hub-index .hub-tabs{grid-column:2;grid-row:2;margin:0}
+#hub-design-options .hub-index .hub-open{grid-column:3;grid-row:1 / span 2;margin:0;align-self:center;white-space:nowrap}
+#hub-design-options .hub-index .hub-tile:hover{box-shadow:none;background:var(--hub-tint)}
+#hub-design-options .hub-chapters .hub-collection{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 28px}
+#hub-design-options .hub-chapter{min-width:0;border-top:3px solid var(--hub-blue);padding-top:12px}
+#hub-design-options .hub-chapter h2{font-size:20px;line-height:26px;font-weight:600;margin:0 0 4px}
+#hub-design-options .hub-chapter-items{list-style:none;padding:0;margin:0}
+#hub-design-options .hub-chapters .hub-tile{min-height:0;border-width:0 0 1px;border-radius:0;background:transparent;padding:16px 0;box-shadow:none}
+#hub-design-options .hub-chapters .hub-topic{display:none}
+#hub-design-options .hub-chapters .hub-description{margin-bottom:8px}
+#hub-design-options .hub-chapters .hub-tabs{margin-bottom:8px}
+#hub-design-options .hub-chapters .hub-tile:hover .hub-title{text-decoration:underline;text-underline-offset:4px}
+#hub-design-options .hub-chapters .hub-tile[aria-pressed=true]{background:var(--hub-tint);padding-left:12px;padding-right:12px}
+#hub-design-options .hub-chapters .hub-head{background:light-dark(#102f50,#10243d);color:#fff;border-top-color:light-dark(#4194ca,#79acdf)}
+#hub-design-options .hub-chapters .hub-eyebrow{color:#bcdbf4}
+#hub-design-options .hub-chapters .hub-subtitle{color:#e0eaf4}
+#hub-design-options .hub-chapters .hub-fiber{opacity:.18}
+@container(max-width:940px){#hub-design-options .hub-collection{grid-template-columns:repeat(2,minmax(0,1fr))}#hub-design-options .hub-index .hub-tile{grid-template-columns:minmax(160px,1fr) minmax(220px,1.5fr)}#hub-design-options .hub-index .hub-open{grid-column:1;grid-row:3}}
+@container(max-width:580px){#hub-design-options .hub-body{padding:18px 16px 12px}#hub-design-options .hub-head{padding:24px 16px 18px}#hub-design-options .hub-fiber{right:-170px;opacity:.45}#hub-design-options h1{font-size:26px;line-height:34px}#hub-design-options .hub-collection,#hub-design-options .hub-chapters .hub-collection{grid-template-columns:1fr}#hub-design-options .hub-tile{min-height:0;padding:18px}#hub-design-options .hub-index .hub-tile{display:flex;gap:0;padding:18px 12px}#hub-design-options .hub-index .hub-title{order:0;margin-bottom:6px}#hub-design-options .hub-index .hub-topic{order:1;margin-bottom:8px}#hub-design-options .hub-index .hub-description{order:2;margin-bottom:10px}#hub-design-options .hub-index .hub-tabs{order:3;margin-bottom:10px}#hub-design-options .hub-index .hub-open{order:4;align-self:start}#hub-design-options .hub-search{font-size:16px}#hub-design-options .hub-count{margin:0}#hub-design-options .hub-toolbar{gap:10px}#hub-design-options .hub-bottom{padding:14px 16px}}
+@media(pointer:coarse){#hub-design-options .hub-filter{min-height:44px}}
+@media(prefers-reduced-motion:reduce){#hub-design-options .hub-tile{transition:none}}
+</style>
+<div id="hub-design-options" class="design-variants" aria-label="Finance Reporting Hub design directions">
+  <section data-variant="Compact tiles" aria-label="Compact report tiles">
+    <div class="hub-stage hub-tiles" id="hub-tiles"></div>
+  </section>
+  <section data-variant="Report index" aria-label="Report index layout" hidden>
+    <div class="hub-stage hub-index" id="hub-index"></div>
+  </section>
+  <section data-variant="Finance chapters" aria-label="Finance chapters layout" hidden>
+    <div class="hub-stage hub-chapters" id="hub-chapters"></div>
+  </section>
+</div>
+<script>
+(()=>{
+ const root=document.getElementById('hub-design-options');
+ const reports=[
+  {
+    "id": "revenue",
+    "title": "Revenue performance",
+    "topic": "Revenue",
+    "tags": [
+      "Sales",
+      "Trends"
+    ],
+    "description": "Explore illustrative sales trends and revenue comparisons by period.",
+    "tabs": [
+      "Overview",
+      "Trends",
+      "Detail"
+    ]
+  },
+  {
+    "id": "inventory",
+    "title": "Inventory overview",
+    "topic": "Inventory",
+    "tags": [
+      "Balances",
+      "Stock"
+    ],
+    "description": "Browse illustrative inventory balances and changes across reporting periods.",
+    "tabs": [
+      "Balances",
+      "Movement"
+    ]
+  },
+  {
+    "id": "cost-scrap",
+    "title": "Cost and scrap analysis",
+    "topic": "Cost",
+    "tags": [
+      "Scrap",
+      "Cost of goods sold"
+    ],
+    "description": "Review illustrative production costs and scrap patterns.",
+    "tabs": [
+      "Cost summary",
+      "Scrap trends"
+    ]
+  },
+  {
+    "id": "opex",
+    "title": "Operating expense review",
+    "topic": "Expenses",
+    "tags": [
+      "Budget",
+      "Spending"
+    ],
+    "description": "Compare illustrative operating expenses with budget.",
+    "tabs": [
+      "Summary",
+      "Budget comparison"
+    ]
+  },
+  {
+    "id": "close",
+    "title": "Month-end status",
+    "topic": "Close",
+    "tags": [
+      "Tasks",
+      "Period"
+    ],
+    "description": "Check illustrative month-end task progress by reporting area.",
+    "tabs": [
+      "Status",
+      "Task detail"
+    ]
+  },
+  {
+    "id": "receivables",
+    "title": "Receivables overview",
+    "topic": "Receivables",
+    "tags": [
+      "Aging",
+      "Collections"
+    ],
+    "description": "Review illustrative receivable balances and aging categories.",
+    "tabs": [
+      "Balances",
+      "Aging"
+    ]
+  }
+];
+ const topics=['All','Revenue','Inventory','Cost','Expenses','Close','Receivables'];
+ const label=t=>({All:'All reports',Cost:'Cost & scrap',Close:'Month-end'}[t]||t);
+ const make=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
+ ['tiles','index','chapters'].forEach(kind=>{
+   const stage=document.getElementById('hub-'+kind);
+   const state={query:'',topic:'All',selected:null};
+   const head=make('header','hub-head');
+   const fiber=make('div','hub-fiber');fiber.setAttribute('aria-hidden','true');
+   head.append(fiber,make('p','hub-eyebrow','Finance · Reporting & tools'),make('h1','','Finance Reporting Hub'),make('p','hub-subtitle','Find the report for your next finance question.'));
+   const body=make('div','hub-body'),toolbar=make('div','hub-toolbar'),searchLabel=make('label','hub-searchlabel','Search reports');
+   const search=make('input','hub-search');search.type='search';search.placeholder='Name, topic, or abbreviation';searchLabel.append(search);
+   const count=make('p','hub-count');count.setAttribute('role','status');count.setAttribute('aria-live','polite');toolbar.append(searchLabel,count);
+   const filters=make('div','hub-topics');filters.setAttribute('role','group');filters.setAttribute('aria-label','Finance topics');
+   const collection=make(kind==='chapters'?'div':'ul','hub-collection');
+   const empty=make('p','hub-empty','No matching reports. Choose another topic or clear your search.');empty.hidden=true;
+   const bottom=make('footer','hub-bottom','Concept preview · Entirely fictional reports, descriptions, and tab names');bottom.setAttribute('role','status');bottom.setAttribute('aria-live','polite');
+   topics.forEach(t=>{const b=make('button','hub-filter cursor-interaction',label(t));b.type='button';b.dataset.topic=t;b.addEventListener('click',()=>{state.topic=t;render();});filters.append(b);});
+   body.append(toolbar,filters,collection,empty);stage.append(head,body,bottom);
+   function entry(r){
+     const li=make('li','hub-entry');
+     const button=make('button','hub-tile cursor-interaction');button.type='button';button.setAttribute('aria-label','Preview opening '+r.title);button.dataset.report=r.id;button.setAttribute('aria-pressed',String(state.selected===r.id));
+     const title=make('span','hub-title',r.title);
+     const description=make('span','hub-description',r.description);
+     const detail=make('span','hub-tabs',(r.tabs.length?'Key tabs: ':'Topics: ')+(r.tabs.length?r.tabs:r.tags).join(' · '));
+     button.append(make('span','hub-topic',label(r.topic)),title,description,detail,make('span','hub-open','Open report ↗'));
+     button.addEventListener('click',()=>{state.selected=r.id;stage.querySelectorAll('[data-report]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.report===r.id)));bottom.textContent='Preview selection: '+r.title+' · No report is opened in this concept.';});
+     li.append(button);return li;
+   }
+   function render(){
+     const q=state.query.trim().toLowerCase();
+     const shown=reports.filter(r=>(state.topic==='All'||r.topic===state.topic||r.tags.includes(state.topic))&&[r.title,r.topic,r.description,...r.tags,...r.tabs].join(' ').toLowerCase().includes(q));
+     collection.replaceChildren();
+     if(kind==='chapters'){
+       ['Revenue','Inventory','Cost','Expenses','Close','Receivables'].forEach(topic=>{const group=shown.filter(r=>r.topic===topic);if(!group.length)return;const section=make('section','hub-chapter');section.append(make('h2','',label(topic)));const list=make('ul','hub-chapter-items');group.forEach(r=>list.append(entry(r)));section.append(list);collection.append(section);});
+     }else shown.forEach(r=>collection.append(entry(r)));
+     count.textContent=shown.length+' of '+reports.length+' sample reports';empty.hidden=shown.length!==0;
+     filters.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.topic===state.topic)));
+   }
+   search.addEventListener('input',()=>{state.query=search.value;render();});render();
+ });
+ let measuredWidth=0;
+ function matchStageHeights(){
+   const width=root.clientWidth;
+   if(!width||Math.abs(width-measuredWidth)<1)return;
+   measuredWidth=width;
+   const visibleSection=Array.from(root.children).find(s=>!s.hidden);
+   const stages=Array.from(root.querySelectorAll('.hub-stage'));
+   let height=0;
+   stages.forEach(stage=>{
+     const clone=stage.cloneNode(true);clone.removeAttribute('id');clone.setAttribute('aria-hidden','true');clone.setAttribute('inert','');
+     Object.assign(clone.style,{position:'absolute',visibility:'hidden',pointerEvents:'none',width:width+'px',minHeight:'0',height:'auto',top:'0',left:'0'});
+     visibleSection.append(clone);height=Math.max(height,clone.getBoundingClientRect().height);clone.remove();
+   });
+   stages.forEach(stage=>stage.style.minHeight=Math.ceil(height)+'px');
+ }
+ requestAnimationFrame(matchStageHeights);
+ if(window.ResizeObserver)new ResizeObserver(()=>requestAnimationFrame(matchStageHeights)).observe(root);
+})();
+</script>
+
+<script>
+(()=>{
+  const picker=document.getElementById('layout-choice');
+  const root=document.getElementById('hub-design-options');
+  const variants=Array.from(root.children).filter(section=>section.hasAttribute('data-variant'));
+  function selectVariant(){
+    for(const section of variants)section.hidden=section.dataset.variant!==picker.value;
+  }
+  picker.addEventListener('change',selectVariant);
+  selectVariant();
+})();
+</script>
+
+</main>
+</body>
+</html>

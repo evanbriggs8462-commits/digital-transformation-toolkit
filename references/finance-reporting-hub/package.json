@@ -1,0 +1,13 @@
+{
+  "name": "finance-reporting-hub-reference",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Research, design guidance, and a dependency-free finance report directory starter",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test tests/catalog.test.mjs"
+  }
+}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Finance Reporting Hub</title>
+  <style>:root{color-scheme:light dark;--bg:light-dark(#f7f9fc,#141d2a);--surface:light-dark(#fff,#1e2939);--ink:light-dark(#172b4d,#edf3fc);--muted:light-dark(#526173,#b4c4d9);--line:light-dark(#dce4ee,#3c4e64);--blue:light-dark(#0f5ba7,#8cbdff);--tint:light-dark(#eaf2fc,#263e5d);--on-blue:light-dark(#fff,#142a47);font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+*{box-sizing:border-box}body{margin:0;font-size:16px;line-height:1.5}button,input,select{font:inherit}button,a,select{touch-action:manipulation}button{cursor:pointer}a{color:var(--blue)}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:3px}[hidden]{display:none!important}
+.skip{position:absolute;left:16px;top:-100px;background:var(--surface);padding:12px;z-index:10}.skip:focus{top:10px}.hub{width:100%;max-width:1600px;margin-inline:auto}.masthead{padding:24px;background:var(--surface);border-top:4px solid var(--blue);border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;line-height:18px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--blue);margin:0 0 4px}h1{font-size:28px;line-height:36px;font-weight:600;letter-spacing:-.5px;margin:0 0 4px}#hub-intro{font-size:16px;line-height:24px;color:var(--muted);margin:0}.browser{padding:24px}.preview-note{font-size:13px;color:var(--muted);margin:0 0 16px}.toolbar{display:flex;gap:20px;align-items:end;justify-content:space-between;flex-wrap:wrap}label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500}.search-label{flex:1;max-width:520px;min-width:min(100%,250px)}input,select{padding:9px 12px;min-height:44px;background:var(--surface);color:var(--ink);border:1px solid var(--muted);border-radius:6px}input::placeholder{color:var(--muted);opacity:1}.filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.filters button{padding:9px 12px;background:var(--surface);border:1px solid transparent;border-radius:5px;color:var(--muted);font-size:14px;font-weight:500;min-height:40px}.filters button:hover{border-color:var(--blue)}.filters button[aria-pressed=true]{background:var(--blue);color:var(--on-blue)}.result-bar{display:flex;gap:16px;justify-content:space-between;align-items:center;margin:16px 0;color:var(--muted);font-size:13px}.result-bar p{margin:0}#reset{padding:8px 0;border:0;background:transparent;color:var(--blue);text-decoration:underline;text-underline-offset:3px;font-size:14px}
+.collection{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}.entry{min-width:0}.report{display:flex;flex-direction:column;height:100%;padding:20px;background:var(--surface);border:1px solid var(--line);border-radius:8px}.category{font-size:13px;line-height:18px;color:var(--blue);font-weight:500;margin:0 0 8px}h2{font-size:18px;line-height:24px;font-weight:600;margin:0 0 8px;overflow-wrap:anywhere}.summary{font-size:16px;line-height:24px;color:var(--muted);margin:0 0 14px}.details{font-size:13px;line-height:18px;color:var(--muted);margin:0 0 16px}.open{align-self:start;display:inline-block;padding:8px 0;font-size:14px;font-weight:600;margin-top:auto;text-decoration:none}.open:hover{text-decoration:underline;text-underline-offset:3px}
+[data-layout=index] .collection{display:block}[data-layout=index] .report{display:grid;grid-template-columns:minmax(180px,1fr) minmax(250px,1.7fr) auto;gap:6px 24px;border-radius:0;border-width:0 0 1px;padding:20px}[data-layout=index] h2{grid-column:1;grid-row:1;margin:0}[data-layout=index] .category{grid-column:1;grid-row:2;margin:0}[data-layout=index] .summary{grid-column:2;grid-row:1;margin:0}[data-layout=index] .details{grid-column:2;grid-row:2;margin:0}[data-layout=index] .open{grid-column:3;grid-row:1/span 2;align-self:center;margin:0;white-space:nowrap}
+[data-layout=chapters]{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:28px}.chapter{min-width:0;border-top:3px solid var(--blue);padding-top:12px}.chapter>h2{font-size:20px;line-height:26px}.chapter .collection{display:block}.chapter .report{background:transparent;border-width:0 0 1px;border-radius:0;padding:16px 0}.chapter .report h3{font-size:18px;line-height:24px;margin:0 0 8px;font-weight:600}.chapter .category{display:none}
+@media(max-width:900px){[data-layout=index] .report{grid-template-columns:minmax(150px,1fr) minmax(210px,1.5fr)}[data-layout=index] .open{grid-column:1;grid-row:3}}
+@media(max-width:580px){.masthead,.browser{padding:18px 16px}h1{font-size:26px;line-height:34px}input{font-size:16px}[data-layout=index] .report{display:flex;gap:0;padding:18px 12px}[data-layout=index] .category{order:0;margin-bottom:8px}[data-layout=index] h2{order:1;margin-bottom:8px}[data-layout=index] .summary{order:2;margin-bottom:12px}[data-layout=index] .details{order:3;margin-bottom:12px}[data-layout=index] .open{order:4;align-self:start}.report{padding:18px}}
+@media(pointer:coarse){.filters button,.open,#reset{min-height:44px}}
+</style>
+</head>
+<body>
+  <a class="skip" href="#reports">Skip to reports</a>
+  <main class="hub">
+    <header class="masthead">
+      <p class="eyebrow">Finance · Report directory</p>
+      <h1 id="hub-title">Finance Reporting Hub</h1>
+      <p id="hub-intro"></p>
+    </header>
+    <section class="browser" aria-label="Report catalog">
+      <p id="preview-note" class="preview-note" hidden>Preview catalog: report destinations are not configured.</p>
+      <div class="toolbar">
+        <label class="search-label">Find a report<input id="search" type="search" placeholder="Name, topic, or abbreviation"></label>
+        <label>Layout<select id="layout"><option value="tiles">Compact tiles</option><option value="index">Report index</option><option value="chapters">Finance chapters</option></select></label>
+      </div>
+      <div id="filters" class="filters" role="group" aria-label="Finance topic"></div>
+      <div class="result-bar"><p id="count" role="status" aria-live="polite"></p><button id="reset" type="button">Reset filters</button></div>
+      <div id="reports" data-layout="tiles"></div>
+      <p id="empty" hidden>No reports match. Try another topic or reset your filters.</p>
+    </section>
+  </main>
+  <noscript>This directory requires JavaScript for local search and rendering. Open reports using the Power BI app navigation.</noscript>
+  <script id="catalog-data" type="application/json">{"$schema":"./catalog.schema.json","title":"Finance Reporting Hub","intro":"Find the right financial report and supporting tool.","filters":["Revenue","Inventory","COGS","Scrap","OPEX","Close","Receivables"],"notes":"Six fictional examples for demonstrating layout and content structure. Names, descriptions, topics, and tab labels do not describe any actual organization. Configure and review real content privately before use. No live URLs or financial data are included.","reports":[{"id":"revenue-performance","title":"Revenue performance","summary":"Review sales trends by product and region, and compare current-period revenue with plan and the prior year.","category":"Revenue","topics":["Sales","Trends"],"keyTabs":["Overview","Product detail","Regional trends"],"url":null,"descriptionStatus":"draft"},{"id":"inventory-overview","title":"Inventory overview","summary":"Review inventory balances, aging, and reserve trends to identify where working capital is tied up.","category":"Inventory","topics":["Working capital","Aging"],"keyTabs":["Balances","Aging","Reserves"],"url":null,"descriptionStatus":"draft"},{"id":"cost-and-scrap","title":"Cost and scrap analysis","summary":"Compare manufacturing costs with plan and inspect scrap trends by site, product, and reason.","category":"COGS","topics":["Scrap","Manufacturing"],"keyTabs":["Cost summary","Scrap trends","Site detail"],"url":null,"descriptionStatus":"draft"},{"id":"operating-expense-review","title":"Operating expense review","summary":"Compare operating expenses with budget and review the cost centers and accounts contributing to period variances.","category":"OPEX","topics":["Spend","Cost centers"],"keyTabs":["Budget comparison","Cost centers","Account detail"],"url":null,"descriptionStatus":"draft"},{"id":"month-end-status","title":"Month-end status","summary":"Check which close activities are complete and identify outstanding tasks by business unit and reporting period.","category":"Close","topics":["Month-end","Tasks"],"keyTabs":["Close overview","Outstanding tasks","Unit detail"],"url":null,"descriptionStatus":"draft"},{"id":"receivables-overview","title":"Receivables overview","summary":"Review customer balances and overdue invoices to prioritize collections and understand receivables aging across the business.","category":"Receivables","topics":["Working capital","Collections"],"keyTabs":["Customer balances","Overdue invoices","Aging"],"url":null,"descriptionStatus":"draft"}]}</script>
+  <script>(() => {
+  const catalog = JSON.parse(document.getElementById('catalog-data').textContent);
+  const view = document.getElementById('reports');
+  const search = document.getElementById('search');
+  const state = { query: '', topic: 'All', layout: 'tiles' };
+  const make = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  document.title = catalog.title;
+  document.getElementById('hub-title').textContent = catalog.title;
+  document.getElementById('hub-intro').textContent = catalog.intro;
+  document.getElementById('preview-note').hidden = catalog.reports.some(r => r.url);
+  const topics = ['All', ...new Set(catalog.filters || catalog.reports.map(r => r.category))];
+  const filters = document.getElementById('filters');
+  topics.forEach(topic => {
+    const button = make('button', '', topic === 'All' ? 'All reports' : topic);
+    button.type = 'button'; button.dataset.topic = topic;
+    button.addEventListener('click', () => { state.topic = topic; render(); });
+    filters.append(button);
+  });
+  function entry(report, heading = 'h2') {
+    const li = make('li', 'entry'), article = make('article', 'report');
+    article.append(make('p', 'category', report.category), make(heading, '', report.title), make('p', 'summary', report.summary));
+    if (report.keyTabs.length) article.append(make('p', 'details', `Key tabs: ${report.keyTabs.slice(0,3).join(' · ')}`));
+    else if (report.topics.length) article.append(make('p', 'details', `Topics: ${report.topics.slice(0,3).join(' · ')}`));
+    if (report.url) {
+      // Recheck at the DOM boundary even though the build validates destinations.
+      try {
+        const url = new URL(report.url);
+        if (url.protocol === 'https:' && !url.username && !url.password) {
+          const link = make('a', 'open', 'Open report ↗'); link.href = url.href;
+          link.target = '_blank'; link.rel = 'noopener noreferrer';
+          link.setAttribute('aria-label', `Open ${report.title} in a new tab`); article.append(link);
+        }
+      } catch { /* Invalid destinations do not become clickable controls. */ }
+    }
+    li.append(article); return li;
+  }
+  function render() {
+    const query = state.query.trim().toLowerCase();
+    const shown = catalog.reports.filter(r => (state.topic === 'All' || r.category === state.topic || r.topics.includes(state.topic)) && [r.title,r.summary,r.category,...r.topics,...r.keyTabs].join(' ').toLowerCase().includes(query));
+    view.dataset.layout = state.layout; view.replaceChildren();
+    if (state.layout === 'chapters') {
+      for (const category of new Set(shown.map(r => r.category))) {
+        const section = make('section','chapter'), list = make('ul','collection');
+        section.append(make('h2','',category));
+        shown.filter(r => r.category === category).forEach(r => list.append(entry(r,'h3')));
+        section.append(list); view.append(section);
+      }
+    } else {
+      const list = make('ul','collection'); shown.forEach(r => list.append(entry(r))); view.append(list);
+    }
+    document.getElementById('count').textContent = `${shown.length} of ${catalog.reports.length} reports`;
+    document.getElementById('empty').hidden = shown.length !== 0;
+    filters.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.topic === state.topic)));
+  }
+  search.addEventListener('input', () => { state.query = search.value; render(); });
+  document.getElementById('layout').addEventListener('change', event => { state.layout = event.target.value; render(); });
+  document.getElementById('reset').addEventListener('click', () => { state.query = ''; state.topic = 'All'; search.value = ''; render(); });
+  render();
+})();
+</script>
+</body>
+</html>

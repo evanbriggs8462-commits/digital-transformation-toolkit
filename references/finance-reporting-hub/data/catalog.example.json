@@ -1,0 +1,119 @@
+{
+  "$schema": "./catalog.schema.json",
+  "title": "Finance Reporting Hub",
+  "intro": "Find the right financial report and supporting tool.",
+  "filters": [
+    "Revenue",
+    "Inventory",
+    "COGS",
+    "Scrap",
+    "OPEX",
+    "Close",
+    "Receivables"
+  ],
+  "notes": "Six fictional examples for demonstrating layout and content structure. Names, descriptions, topics, and tab labels do not describe any actual organization. Configure and review real content privately before use. No live URLs or financial data are included.",
+  "reports": [
+    {
+      "id": "revenue-performance",
+      "title": "Revenue performance",
+      "summary": "Review sales trends by product and region, and compare current-period revenue with plan and the prior year.",
+      "category": "Revenue",
+      "topics": [
+        "Sales",
+        "Trends"
+      ],
+      "keyTabs": [
+        "Overview",
+        "Product detail",
+        "Regional trends"
+      ],
+      "url": null,
+      "descriptionStatus": "draft"
+    },
+    {
+      "id": "inventory-overview",
+      "title": "Inventory overview",
+      "summary": "Review inventory balances, aging, and reserve trends to identify where working capital is tied up.",
+      "category": "Inventory",
+      "topics": [
+        "Working capital",
+        "Aging"
+      ],
+      "keyTabs": [
+        "Balances",
+        "Aging",
+        "Reserves"
+      ],
+      "url": null,
+      "descriptionStatus": "draft"
+    },
+    {
+      "id": "cost-and-scrap",
+      "title": "Cost and scrap analysis",
+      "summary": "Compare manufacturing costs with plan and inspect scrap trends by site, product, and reason.",
+      "category": "COGS",
+      "topics": [
+        "Scrap",
+        "Manufacturing"
+      ],
+      "keyTabs": [
+        "Cost summary",
+        "Scrap trends",
+        "Site detail"
+      ],
+      "url": null,
+      "descriptionStatus": "draft"
+    },
+    {
+      "id": "operating-expense-review",
+      "title": "Operating expense review",
+      "summary": "Compare operating expenses with budget and review the cost centers and accounts contributing to period variances.",
+      "category": "OPEX",
+      "topics": [
+        "Spend",
+        "Cost centers"
+      ],
+      "keyTabs": [
+        "Budget comparison",
+        "Cost centers",
+        "Account detail"
+      ],
+      "url": null,
+      "descriptionStatus": "draft"
+    },
+    {
+      "id": "month-end-status",
+      "title": "Month-end status",
+      "summary": "Check which close activities are complete and identify outstanding tasks by business unit and reporting period.",
+      "category": "Close",
+      "topics": [
+        "Month-end",
+        "Tasks"
+      ],
+      "keyTabs": [
+        "Close overview",
+        "Outstanding tasks",
+        "Unit detail"
+      ],
+      "url": null,
+      "descriptionStatus": "draft"
+    },
+    {
+      "id": "receivables-overview",
+      "title": "Receivables overview",
+      "summary": "Review customer balances and overdue invoices to prioritize collections and understand receivables aging across the business.",
+      "category": "Receivables",
+      "topics": [
+        "Working capital",
+        "Collections"
+      ],
+      "keyTabs": [
+        "Customer balances",
+        "Overdue invoices",
+        "Aging"
+      ],
+      "url": null,
+      "descriptionStatus": "draft"
+    }
+  ]
+}

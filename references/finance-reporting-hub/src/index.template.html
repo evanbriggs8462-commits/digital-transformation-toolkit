@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Finance Reporting Hub</title>
+  <style>/* HUB_STYLES */</style>
+</head>
+<body>
+  <a class="skip" href="#reports">Skip to reports</a>
+  <main class="hub">
+    <header class="masthead">
+      <p class="eyebrow">Finance · Report directory</p>
+      <h1 id="hub-title">Finance Reporting Hub</h1>
+      <p id="hub-intro"></p>
+    </header>
+    <section class="browser" aria-label="Report catalog">
+      <p id="preview-note" class="preview-note" hidden>Preview catalog: report destinations are not configured.</p>
+      <div class="toolbar">
+        <label class="search-label">Find a report<input id="search" type="search" placeholder="Name, topic, or abbreviation"></label>
+        <label>Layout<select id="layout"><option value="tiles">Compact tiles</option><option value="index">Report index</option><option value="chapters">Finance chapters</option></select></label>
+      </div>
+      <div id="filters" class="filters" role="group" aria-label="Finance topic"></div>
+      <div class="result-bar"><p id="count" role="status" aria-live="polite"></p><button id="reset" type="button">Reset filters</button></div>
+      <div id="reports" data-layout="tiles"></div>
+      <p id="empty" hidden>No reports match. Try another topic or reset your filters.</p>
+    </section>
+  </main>
+  <noscript>This directory requires JavaScript for local search and rendering. Open reports using the Power BI app navigation.</noscript>
+  <script id="catalog-data" type="application/json">CATALOG_JSON</script>
+  <script>/* HUB_SCRIPT */</script>
+</body>
+</html>
